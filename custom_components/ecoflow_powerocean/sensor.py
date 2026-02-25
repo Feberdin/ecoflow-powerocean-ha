@@ -375,7 +375,8 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.FREQUENCY,
         state_class=SensorStateClass.MEASUREMENT,
         data_key=DATA_EMS_HEARTBEAT,
-        value_fn=lambda d: round(d.frequency_hz, 2),
+        # Gerät sendet Frequenz nicht immer — 0 Hz als None behandeln
+        value_fn=lambda d: round(d.frequency_hz, 2) if d.frequency_hz > 0 else None,
     ),
 
     # MPPT-Strings
