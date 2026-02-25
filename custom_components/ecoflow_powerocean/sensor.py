@@ -1,46 +1,23 @@
 """
 Sensor-Plattform für die EcoFlow PowerOcean Plus Integration.
 
-Implementierte Sensorgruppen:
+Sensorgruppen:
 
-    Pro Batterie-Pack (konfigurierbar, Standard: 2):
-    ┌──────────────────────────────────────────────────────────┐
-    │ • Ladestand (SOC)          %    — Primärsensor           │
-    │ • Gesundheitszustand (SOH) %    — Langzeitüberwachung    │
-    │ • Aktuelle Leistung        W    — Laden/Entladen         │
-    │ • Spannung                 V    — Betriebspunkt          │
-    │ • Strom                    A    — Betriebspunkt          │
-    │ • Verbleibende Energie     Wh   — Energiemanagement      │
-    │ • Umgebungstemperatur      °C   — Thermoüberwachung      │
-    │ • Ladezyklen               —    — Alterungsindikator     │
-    └──────────────────────────────────────────────────────────┘
+    Batterie-Pack-Sensoren (konfigurierbar, Standard: 2 Packs × 9 Sensoren):
+        SOC, SOH, Leistung, Spannung*, Strom*, Energie, Temp, MOSFET-Temp*, Zyklen
 
-    Systemweite Leistungs-Sensoren (JTS1_EMS_HEARTBEAT):
-    ┌──────────────────────────────────────────────────────────┐
-    │ • Solar-Leistung           W    — PV-Ertrag gesamt       │
-    │ • Netz-Leistung            W    — Bezug/Einspeisung      │
-    │ • Hausverbrauch            W    — Aktuelle Last          │
-    │ • Batterie-Gesamtleistung  W    — Laden/Entladen         │
-    │ • Gesamt-Ladestand         %    — Kombinierter SOC       │
-    │ • Phase L1/L2/L3 Spannung  V    — 3-Phasen-Daten        │
-    │ • Phase L1/L2/L3 Strom     A    — 3-Phasen-Daten        │
-    │ • Phase L1/L2/L3 Leistung  W    — 3-Phasen-Daten        │
-    │ • Netzfrequenz             Hz   — Netzqualität           │
-    │ • MPPT 1–4 Leistung        W    — PV-Strings            │
-    └──────────────────────────────────────────────────────────┘
+    Systemweite Leistungs-Sensoren aus EMS_HEARTBEAT:
+        Solar, Netz, Last, Batterie-Gesamt, Gesamt-SOC, Gesamtenergie,
+        DC-Bus*, Aktive Module,
+        Phase L1/L2/L3: Spannung, Strom, Wirk-, Blind-*, Scheinleistung*,
+        Netzfrequenz, MPPT 1–4: Leistung, Spannung*, Strom*
 
-    Energie-Akkumulatoren für das HA Energie-Dashboard (kWh):
-    ┌──────────────────────────────────────────────────────────┐
-    │ • Solar-Energie            kWh  — Energie-Dashboard      │
-    │ • Netz-Bezug               kWh  — Energie-Dashboard      │
-    │ • Netz-Einspeisung         kWh  — Energie-Dashboard      │
-    │ • Batterie-Entnahme        kWh  — Energie-Dashboard      │
-    │ • Batterie-Ladung          kWh  — Energie-Dashboard      │
-    └──────────────────────────────────────────────────────────┘
+    Energie-Akkumulatoren (kWh, für Energie-Dashboard):
+        Solar, Netz-Bezug, Netz-Einspeisung, Batterie-Entnahme, Batterie-Ladung
 
-    Die Akkumulatoren integrieren Momentleistung (W) per Riemann-Summe
-    zu kumulierten Energiemengen (kWh). Werte bleiben über HA-Neustarts
-    erhalten (RestoreSensor). Kein YAML oder Helfer nötig.
+    Verbindungsstatus: connected / disconnected
+
+    (* = standardmäßig deaktiviert)
 """
 
 from __future__ import annotations
@@ -60,11 +37,13 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfFrequency,
     UnitOfPower,
+    UnitOfReactivePower,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -99,25 +78,14 @@ class EcoFlowBatterySensorDescription(SensorEntityDescription):
 
 @dataclass(frozen=True, kw_only=True)
 class EcoFlowSystemSensorDescription(SensorEntityDescription):
-    """
-    Sensor-Beschreibung für systemweite Momentleistungs-Sensoren (W, %, V, A, Hz).
-
-    `data_key` gibt an, welcher Schlüssel in coordinator.data ausgelesen wird.
-    `value_fn` extrahiert den Wert aus dem jeweiligen Datenobjekt.
-    """
+    """Sensor-Beschreibung für systemweite Momentwert-Sensoren."""
     data_key: str = ""
     value_fn: Callable[[Any], Any] = lambda _: None
 
 
 @dataclass(frozen=True, kw_only=True)
 class EcoFlowEnergyAccumulatorDescription(SensorEntityDescription):
-    """
-    Sensor-Beschreibung für Energie-Akkumulatoren (kWh, für das Energie-Dashboard).
-
-    `power_fn` wird mit coordinator.data aufgerufen und gibt die zu integrierende
-    Leistung in Watt zurück (immer >= 0). Die Sensoren akkumulieren die Energie
-    per Links-Riemann-Summe und behalten den Wert über HA-Neustarts (RestoreSensor).
-    """
+    """Sensor-Beschreibung für Energie-Akkumulatoren (kWh)."""
     power_fn: Callable[[dict], float] = lambda _: 0.0
 
 
@@ -133,7 +101,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda p: p.soc,
     ),
-
     EcoFlowBatterySensorDescription(
         key="soh",
         translation_key="battery_soh",
@@ -142,7 +109,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         icon="mdi:battery-heart",
         value_fn=lambda p: p.soh,
     ),
-
     EcoFlowBatterySensorDescription(
         key="power",
         translation_key="battery_power",
@@ -151,7 +117,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda p: round(p.power_w, 1),
     ),
-
     EcoFlowBatterySensorDescription(
         key="voltage",
         translation_key="battery_voltage",
@@ -161,7 +126,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda p: round(p.voltage_v, 2),
     ),
-
     EcoFlowBatterySensorDescription(
         key="current",
         translation_key="battery_current",
@@ -171,7 +135,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda p: round(p.current_a, 3),
     ),
-
     EcoFlowBatterySensorDescription(
         key="remaining_energy",
         translation_key="battery_remaining_energy",
@@ -180,7 +143,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda p: round(p.remaining_wh, 0),
     ),
-
     EcoFlowBatterySensorDescription(
         key="temperature",
         translation_key="battery_temperature",
@@ -189,7 +151,16 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda p: round(p.temperature_env_c, 1),
     ),
-
+    EcoFlowBatterySensorDescription(
+        key="temperature_mos",
+        translation_key="battery_temperature_mos",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        icon="mdi:thermometer-alert",
+        value_fn=lambda p: round(p.temperature_mos_c, 1),
+    ),
     EcoFlowBatterySensorDescription(
         key="cycles",
         translation_key="battery_cycles",
@@ -201,13 +172,6 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
 
 
 # ── Systemweite Leistungs-Sensoren ────────────────────────────────────────────
-
-# Aus EMS_HEARTBEAT abgeleitet (Gerät sendet cmdId=33 nicht zuverlässig):
-#   solar_power   = Summe MPPT-String-Leistungen
-#   grid_power    = Summe Phasen-actPwr (negativ = Einspeisung)
-#   load_power    = Energiebilanz: solar + battery + grid
-#   battery_total = emsBpPower (Feld 59)
-#   total_soc     = Durchschnitt Pack-SOCs aus DATA_BATTERIES
 
 ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
 
@@ -221,7 +185,6 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(sum(s.power_w for s in d.mppt_strings), 1),
     ),
-
     EcoFlowSystemSensorDescription(
         key="grid_power",
         translation_key="grid_power",
@@ -232,7 +195,6 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_a.act_pwr + d.phase_b.act_pwr + d.phase_c.act_pwr, 1),
     ),
-
     EcoFlowSystemSensorDescription(
         key="load_power",
         translation_key="load_power",
@@ -248,7 +210,6 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
             1,
         ),
     ),
-
     EcoFlowSystemSensorDescription(
         key="battery_total_power",
         translation_key="battery_total_power",
@@ -259,7 +220,6 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.battery_power_w, 1),
     ),
-
     EcoFlowSystemSensorDescription(
         key="total_soc",
         translation_key="total_soc",
@@ -269,12 +229,39 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_BATTERIES,
         value_fn=lambda d: int(sum(p.soc for p in d.values()) / len(d)) if d else None,
     ),
+    EcoFlowSystemSensorDescription(
+        key="bp_remain_wh",
+        translation_key="bp_remain_wh",
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.bp_remain_wh, 0) if d.bp_remain_wh > 0 else None,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="bp_alive_count",
+        translation_key="bp_alive_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-check",
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: d.bp_alive_num if d.bp_alive_num > 0 else None,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="bus_voltage",
+        translation_key="bus_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.bus_volt, 1) if d.bus_volt > 0 else None,
+    ),
 )
 
 
 EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
 
-    # Phase L1
+    # ── Phase L1 ──────────────────────────────────────────────────────────────
     EcoFlowSystemSensorDescription(
         key="phase_a_voltage",
         translation_key="phase_a_voltage",
@@ -284,7 +271,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_a.volt, 1),
     ),
-
     EcoFlowSystemSensorDescription(
         key="phase_a_current",
         translation_key="phase_a_current",
@@ -294,7 +280,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_a.amp, 2),
     ),
-
     EcoFlowSystemSensorDescription(
         key="phase_a_power",
         translation_key="phase_a_power",
@@ -304,8 +289,28 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_a.act_pwr, 1),
     ),
+    EcoFlowSystemSensorDescription(
+        key="phase_a_reactive_power",
+        translation_key="phase_a_reactive_power",
+        native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+        device_class=SensorDeviceClass.REACTIVE_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.phase_a.react_pwr, 1),
+    ),
+    EcoFlowSystemSensorDescription(
+        key="phase_a_apparent_power",
+        translation_key="phase_a_apparent_power",
+        native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.phase_a.apparent_pwr, 1),
+    ),
 
-    # Phase L2
+    # ── Phase L2 ──────────────────────────────────────────────────────────────
     EcoFlowSystemSensorDescription(
         key="phase_b_voltage",
         translation_key="phase_b_voltage",
@@ -315,7 +320,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_b.volt, 1),
     ),
-
     EcoFlowSystemSensorDescription(
         key="phase_b_current",
         translation_key="phase_b_current",
@@ -325,7 +329,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_b.amp, 2),
     ),
-
     EcoFlowSystemSensorDescription(
         key="phase_b_power",
         translation_key="phase_b_power",
@@ -335,8 +338,28 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_b.act_pwr, 1),
     ),
+    EcoFlowSystemSensorDescription(
+        key="phase_b_reactive_power",
+        translation_key="phase_b_reactive_power",
+        native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+        device_class=SensorDeviceClass.REACTIVE_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.phase_b.react_pwr, 1),
+    ),
+    EcoFlowSystemSensorDescription(
+        key="phase_b_apparent_power",
+        translation_key="phase_b_apparent_power",
+        native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.phase_b.apparent_pwr, 1),
+    ),
 
-    # Phase L3
+    # ── Phase L3 ──────────────────────────────────────────────────────────────
     EcoFlowSystemSensorDescription(
         key="phase_c_voltage",
         translation_key="phase_c_voltage",
@@ -346,7 +369,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_c.volt, 1),
     ),
-
     EcoFlowSystemSensorDescription(
         key="phase_c_current",
         translation_key="phase_c_current",
@@ -356,7 +378,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_c.amp, 2),
     ),
-
     EcoFlowSystemSensorDescription(
         key="phase_c_power",
         translation_key="phase_c_power",
@@ -366,8 +387,28 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.phase_c.act_pwr, 1),
     ),
+    EcoFlowSystemSensorDescription(
+        key="phase_c_reactive_power",
+        translation_key="phase_c_reactive_power",
+        native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+        device_class=SensorDeviceClass.REACTIVE_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.phase_c.react_pwr, 1),
+    ),
+    EcoFlowSystemSensorDescription(
+        key="phase_c_apparent_power",
+        translation_key="phase_c_apparent_power",
+        native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.phase_c.apparent_pwr, 1),
+    ),
 
-    # Netz
+    # ── Netz ──────────────────────────────────────────────────────────────────
     EcoFlowSystemSensorDescription(
         key="grid_frequency",
         translation_key="grid_frequency",
@@ -375,11 +416,10 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.FREQUENCY,
         state_class=SensorStateClass.MEASUREMENT,
         data_key=DATA_EMS_HEARTBEAT,
-        # Gerät sendet Frequenz nicht immer — 0 Hz als None behandeln
         value_fn=lambda d: round(d.frequency_hz, 2) if d.frequency_hz > 0 else None,
     ),
 
-    # MPPT-Strings
+    # ── MPPT-Strings ──────────────────────────────────────────────────────────
     EcoFlowSystemSensorDescription(
         key="mppt_1_power",
         translation_key="mppt_1_power",
@@ -390,7 +430,26 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.mppt_strings[0].power_w, 1) if len(d.mppt_strings) >= 1 else None,
     ),
-
+    EcoFlowSystemSensorDescription(
+        key="mppt_1_voltage",
+        translation_key="mppt_1_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[0].volt, 1) if len(d.mppt_strings) >= 1 else None,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="mppt_1_current",
+        translation_key="mppt_1_current",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[0].amp, 2) if len(d.mppt_strings) >= 1 else None,
+    ),
     EcoFlowSystemSensorDescription(
         key="mppt_2_power",
         translation_key="mppt_2_power",
@@ -401,7 +460,26 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.mppt_strings[1].power_w, 1) if len(d.mppt_strings) >= 2 else None,
     ),
-
+    EcoFlowSystemSensorDescription(
+        key="mppt_2_voltage",
+        translation_key="mppt_2_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[1].volt, 1) if len(d.mppt_strings) >= 2 else None,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="mppt_2_current",
+        translation_key="mppt_2_current",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[1].amp, 2) if len(d.mppt_strings) >= 2 else None,
+    ),
     EcoFlowSystemSensorDescription(
         key="mppt_3_power",
         translation_key="mppt_3_power",
@@ -413,7 +491,26 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.mppt_strings[2].power_w, 1) if len(d.mppt_strings) >= 3 else None,
     ),
-
+    EcoFlowSystemSensorDescription(
+        key="mppt_3_voltage",
+        translation_key="mppt_3_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[2].volt, 1) if len(d.mppt_strings) >= 3 else None,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="mppt_3_current",
+        translation_key="mppt_3_current",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[2].amp, 2) if len(d.mppt_strings) >= 3 else None,
+    ),
     EcoFlowSystemSensorDescription(
         key="mppt_4_power",
         translation_key="mppt_4_power",
@@ -425,16 +522,30 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.mppt_strings[3].power_w, 1) if len(d.mppt_strings) >= 4 else None,
     ),
+    EcoFlowSystemSensorDescription(
+        key="mppt_4_voltage",
+        translation_key="mppt_4_voltage",
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[3].volt, 1) if len(d.mppt_strings) >= 4 else None,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="mppt_4_current",
+        translation_key="mppt_4_current",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.mppt_strings[3].amp, 2) if len(d.mppt_strings) >= 4 else None,
+    ),
 )
 
 
-# ── Energie-Akkumulatoren (kWh, für das Energie-Dashboard) ───────────────────
-#
-# Jeder Akkumulator integriert eine Leistung (W) über die Zeit (Links-Riemann-Summe)
-# und liefert eine kumulierte Energiemenge (kWh).
-#
-# Bidirektionale Quellen (Netz, Batterie) werden in Bezug und Rückspeisung
-# aufgeteilt — power_fn gibt immer einen nicht-negativen Wert zurück.
+# ── Energie-Akkumulatoren (kWh) ───────────────────────────────────────────────
 
 ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
 
@@ -442,63 +553,49 @@ ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
         key="solar_energy",
         translation_key="solar_energy",
         icon="mdi:solar-power",
-        # Summe aller MPPT-String-Leistungen
         power_fn=lambda d: max(
             sum(s.power_w for s in d[DATA_EMS_HEARTBEAT].mppt_strings)
-            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0,
-            0.0,
+            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0, 0.0,
         ),
     ),
-
     EcoFlowEnergyAccumulatorDescription(
         key="grid_import_energy",
         translation_key="grid_import_energy",
         icon="mdi:transmission-tower-import",
-        # Phasen-Summe positiv = Netzbezug
         power_fn=lambda d: max(
             d[DATA_EMS_HEARTBEAT].phase_a.act_pwr
             + d[DATA_EMS_HEARTBEAT].phase_b.act_pwr
             + d[DATA_EMS_HEARTBEAT].phase_c.act_pwr
-            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0,
-            0.0,
+            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0, 0.0,
         ),
     ),
-
     EcoFlowEnergyAccumulatorDescription(
         key="grid_export_energy",
         translation_key="grid_export_energy",
         icon="mdi:transmission-tower-export",
-        # Phasen-Summe negativ = Einspeisung (Betrag)
         power_fn=lambda d: max(
             -(d[DATA_EMS_HEARTBEAT].phase_a.act_pwr
               + d[DATA_EMS_HEARTBEAT].phase_b.act_pwr
               + d[DATA_EMS_HEARTBEAT].phase_c.act_pwr)
-            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0,
-            0.0,
+            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0, 0.0,
         ),
     ),
-
     EcoFlowEnergyAccumulatorDescription(
         key="battery_discharge_energy",
         translation_key="battery_discharge_energy",
         icon="mdi:battery-arrow-up",
-        # emsBpPower positiv = Batterie entlädt
         power_fn=lambda d: max(
             d[DATA_EMS_HEARTBEAT].battery_power_w
-            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0,
-            0.0,
+            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0, 0.0,
         ),
     ),
-
     EcoFlowEnergyAccumulatorDescription(
         key="battery_charge_energy",
         translation_key="battery_charge_energy",
         icon="mdi:battery-arrow-down",
-        # emsBpPower negativ = Batterie lädt (Betrag)
         power_fn=lambda d: max(
             -d[DATA_EMS_HEARTBEAT].battery_power_w
-            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0,
-            0.0,
+            if d.get(DATA_EMS_HEARTBEAT) is not None else 0.0, 0.0,
         ),
     ),
 )
@@ -520,17 +617,14 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """
-    Initialisiert alle Sensor-Entitäten für einen Config Entry.
-
-    Erstellt beim Start:
-    - Batterie-Pack-Sensoren (8 × num_packs)
-    - Systemweite Leistungs-Sensoren (Momentwerte in W/%, V, A, Hz)
-    - Energie-Akkumulatoren (5 kWh-Sensoren für das Energie-Dashboard)
-    """
+    """Initialisiert alle Sensor-Entitäten für einen Config Entry."""
     coordinator: EcoFlowCoordinator = hass.data[DOMAIN][entry.entry_id]
     serial = entry.data[CONF_SERIAL_NUMBER]
-    num_packs: int = entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS)
+    # Options haben Vorrang vor initialen Konfigurationsdaten
+    num_packs: int = entry.options.get(
+        CONF_NUM_BATTERY_PACKS,
+        entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS),
+    )
 
     device_info = DeviceInfo(
         identifiers={(DOMAIN, serial)},
@@ -552,20 +646,21 @@ async def async_setup_entry(
     # Systemweite Leistungs-Sensoren
     for desc in (*ENERGY_STREAM_SENSOR_TYPES, *EMS_HEARTBEAT_SENSOR_TYPES):
         entities.append(EcoFlowSystemSensor(
-            coordinator=coordinator,
-            description=desc,
-            device_info=device_info,
-            serial=serial,
+            coordinator=coordinator, description=desc,
+            device_info=device_info, serial=serial,
         ))
 
-    # Energie-Akkumulatoren (kWh) für das Energie-Dashboard
+    # Energie-Akkumulatoren (kWh)
     for desc in ENERGY_ACCUMULATOR_TYPES:
         entities.append(EcoFlowEnergyAccumulatorSensor(
-            coordinator=coordinator,
-            description=desc,
-            device_info=device_info,
-            serial=serial,
+            coordinator=coordinator, description=desc,
+            device_info=device_info, serial=serial,
         ))
+
+    # Verbindungsstatus
+    entities.append(EcoFlowConnectionSensor(
+        coordinator=coordinator, device_info=device_info, serial=serial,
+    ))
 
     _LOGGER.debug(
         "Erstelle %d Sensor-Entitäten für %d Batterie-Pack(s) (SN: %s)",
@@ -583,31 +678,21 @@ def _create_battery_sensors(
     """Erstellt alle Sensor-Entitäten für einen Batterie-Pack."""
     return [
         EcoFlowBatterySensor(
-            coordinator=coordinator,
-            description=desc,
-            device_info=device_info,
-            serial=serial,
-            pack_index=pack_index,
+            coordinator=coordinator, description=desc,
+            device_info=device_info, serial=serial, pack_index=pack_index,
         )
         for desc in BATTERY_SENSOR_TYPES
     ]
 
 
-# ── Sensor-Entitäten ──────────────────────────────────────────────────────────
+# ── Sensor-Klassen ────────────────────────────────────────────────────────────
 
 class EcoFlowBatterySensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
     """Sensor für einen Messwert eines einzelnen Batterie-Packs."""
 
     _attr_has_entity_name = True
 
-    def __init__(
-        self,
-        coordinator: EcoFlowCoordinator,
-        description: EcoFlowBatterySensorDescription,
-        device_info: DeviceInfo,
-        serial: str,
-        pack_index: int,
-    ) -> None:
+    def __init__(self, coordinator, description, device_info, serial, pack_index):
         super().__init__(coordinator)
         self.entity_description = description
         self._pack_index = pack_index
@@ -617,8 +702,8 @@ class EcoFlowBatterySensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
 
     @property
     def name(self) -> str:
-        base_name = (self.entity_description.translation_key or self.entity_description.key).replace("_", " ").title()
-        return f"Battery {self._pack_index} {base_name.replace('Battery ', '')}"
+        base = (self.entity_description.translation_key or self.entity_description.key).replace("_", " ").title()
+        return f"Battery {self._pack_index} {base.replace('Battery ', '')}"
 
     @property
     def native_value(self) -> Any:
@@ -632,10 +717,7 @@ class EcoFlowBatterySensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
 
     @property
     def available(self) -> bool:
-        return (
-            super().available
-            and self._pack_index in coordinator_batteries(self.coordinator)
-        )
+        return super().available and self._pack_index in coordinator_batteries(self.coordinator)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -649,17 +731,11 @@ class EcoFlowBatterySensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
 
 
 class EcoFlowSystemSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
-    """Sensor für systemweite Momentwerte (W, %, V, A, Hz)."""
+    """Sensor für systemweite Momentwerte (W, %, V, A, Hz, VA, var)."""
 
     _attr_has_entity_name = True
 
-    def __init__(
-        self,
-        coordinator: EcoFlowCoordinator,
-        description: EcoFlowSystemSensorDescription,
-        device_info: DeviceInfo,
-        serial: str,
-    ) -> None:
+    def __init__(self, coordinator, description, device_info, serial):
         super().__init__(coordinator)
         self.entity_description = description
         self._serial = serial
@@ -670,8 +746,7 @@ class EcoFlowSystemSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
     def native_value(self) -> Any:
         data = (
             self.coordinator.data.get(self.entity_description.data_key)
-            if self.coordinator.data
-            else None
+            if self.coordinator.data else None
         )
         if data is None:
             return None
@@ -691,16 +766,11 @@ class EcoFlowSystemSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
 
 class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], RestoreSensor):
     """
-    Energie-Akkumulator-Sensor (kWh) für das HA Energie-Dashboard.
+    Energie-Akkumulator (kWh) — integriert Leistung (W) per Links-Riemann-Summe.
 
-    Integriert Momentleistung (W) über die Zeit per Links-Riemann-Summe zu
-    einer kumulierten Energiemenge (kWh). Der Wert bleibt über HA-Neustarts
-    erhalten. Kein externer Helfer oder YAML nötig.
-
-    Eigenschaften die das Energie-Dashboard erkennt:
-        device_class:  energy
-        state_class:   total_increasing
-        unit:          kWh
+    device_class: energy  |  state_class: total_increasing  |  unit: kWh
+    → Erscheint direkt in allen Energie-Dashboard-Dropdowns.
+    Wert bleibt über HA-Neustarts erhalten (RestoreSensor).
     """
 
     _attr_has_entity_name = True
@@ -708,55 +778,39 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
-    def __init__(
-        self,
-        coordinator: EcoFlowCoordinator,
-        description: EcoFlowEnergyAccumulatorDescription,
-        device_info: DeviceInfo,
-        serial: str,
-    ) -> None:
+    def __init__(self, coordinator, description, device_info, serial):
         super().__init__(coordinator)
         self.entity_description = description
         self._serial = serial
         self._attr_unique_id = f"{serial}_{description.key}"
         self._attr_device_info = device_info
-
         self._accumulated_kwh: float = 0.0
         self._last_update: datetime | None = None
         self._last_power_w: float = 0.0
 
     async def async_added_to_hass(self) -> None:
-        """Letzten gespeicherten Energiewert nach HA-Neustart wiederherstellen."""
         await super().async_added_to_hass()
         last_data = await self.async_get_last_sensor_data()
         if last_data is not None and last_data.native_value is not None:
             try:
                 self._accumulated_kwh = float(last_data.native_value)
-                _LOGGER.debug(
-                    "Energiezähler %s wiederhergestellt: %.4f kWh",
-                    self.entity_description.key,
-                    self._accumulated_kwh,
-                )
+                _LOGGER.debug("Energiezähler %s: %.4f kWh wiederhergestellt",
+                              self.entity_description.key, self._accumulated_kwh)
             except (TypeError, ValueError):
                 pass
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Wird bei jedem MQTT-Update aufgerufen — integriert die Leistung."""
         now = dt_util.utcnow()
         power_w = self._get_power_w()
-
         if self._last_update is not None:
-            # Links-Riemann-Summe: vorherige Leistung × Zeitdelta
             dt_hours = (now - self._last_update).total_seconds() / 3600.0
             self._accumulated_kwh += (self._last_power_w / 1000.0) * dt_hours
-
         self._last_update = now
         self._last_power_w = power_w
         super()._handle_coordinator_update()
 
     def _get_power_w(self) -> float:
-        """Gibt die zu integrierende Leistung in Watt zurück (immer >= 0)."""
         if not self.coordinator.data:
             return 0.0
         try:
@@ -766,7 +820,6 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
 
     @property
     def native_value(self) -> float:
-        """Akkumulierte Energie in kWh."""
         return round(self._accumulated_kwh, 4)
 
     @property
@@ -778,10 +831,38 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
         )
 
 
+class EcoFlowConnectionSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
+    """
+    Verbindungsstatus der MQTT-Verbindung zum EcoFlow Cloud-Broker.
+
+    Nützlich für Automationen ("benachrichtige mich wenn Verbindung weg").
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "connection_status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["connected", "disconnected"]
+
+    def __init__(self, coordinator, device_info, serial):
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{serial}_connection_status"
+        self._attr_device_info = device_info
+
+    @property
+    def native_value(self) -> str:
+        return "connected" if self.coordinator._mqtt_connected else "disconnected"
+
+    @property
+    def icon(self) -> str:
+        return "mdi:cloud-check" if self.coordinator._mqtt_connected else "mdi:cloud-off"
+
+    @property
+    def available(self) -> bool:
+        return True  # Immer verfügbar — zeigt connected/disconnected
+
+
 # ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
-def coordinator_batteries(
-    coordinator: EcoFlowCoordinator,
-) -> dict[int, BatteryPackData]:
-    """Gibt das Batterie-Pack-Dictionary aus dem Coordinator-Datensatz zurück."""
+def coordinator_batteries(coordinator: EcoFlowCoordinator) -> dict[int, BatteryPackData]:
+    """Gibt das Batterie-Pack-Dictionary aus dem Coordinator zurück."""
     return coordinator.data.get(DATA_BATTERIES, {}) if coordinator.data else {}

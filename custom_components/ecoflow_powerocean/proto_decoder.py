@@ -98,6 +98,10 @@ class PhaseData:
     """Phasenstrom in Ampere."""
     act_pwr: float = 0.0
     """Wirkleistung in Watt."""
+    react_pwr: float = 0.0
+    """Blindleistung in Var."""
+    apparent_pwr: float = 0.0
+    """Scheinleistung in VA."""
 
 
 @dataclass
@@ -133,6 +137,12 @@ class EmsHeartbeatData:
     """Liste der MPPT-PV-Strings (je nach Anlagenaufbau 1–4 Einträge)."""
     battery_power_w: float = 0.0
     """Gesamte Batterieleistung in Watt (positiv=Entladen, negativ=Laden)."""
+    bus_volt: float = 0.0
+    """DC-Busspannung des Wechselrichters in Volt."""
+    bp_alive_num: int = 0
+    """Anzahl aktiver Batteriemodule."""
+    bp_remain_wh: float = 0.0
+    """Verbleibende Gesamtenergie aller Batteriepacks in Wattstunden."""
 
 
 @dataclass
@@ -372,12 +382,14 @@ def _decode_bp_sta_report(pdata: bytes) -> list[BatteryPackData]:
 
 
 def _decode_pcs_phase(raw: bytes) -> PhaseData:
-    """Dekodiert ein pcsPhase-Protobuf-Objekt (Felder 1=volt, 2=amp, 3=actPwr)."""
+    """Dekodiert ein pcsPhase-Objekt (1=volt, 2=amp, 3=actPwr, 4=reactPwr, 5=apparentPwr)."""
     f = _decode_fields(raw)
     return PhaseData(
         volt=_get_float(f, 1),
         amp=_get_float(f, 2),
         act_pwr=_get_float(f, 3),
+        react_pwr=_get_float(f, 4),
+        apparent_pwr=_get_float(f, 5),
     )
 
 
@@ -439,7 +451,10 @@ def _decode_ems_heartbeat(pdata: bytes) -> EmsHeartbeatData | None:
             phase_c=phase_c,
             frequency_hz=freq,
             mppt_strings=mppt_strings,
-            battery_power_w=_get_float(f, 59),  # emsBpPower
+            battery_power_w=_get_float(f, 59),   # emsBpPower
+            bus_volt=_get_float(f, 16),           # pcsBusVolt
+            bp_alive_num=_get_int(f, 58),         # emsBpAliveNum
+            bp_remain_wh=_get_float(f, 1),        # bpRemainWatth
         )
     except Exception as exc:
         _LOGGER.warning("Fehler beim Dekodieren von EMS_HEARTBEAT: %s", exc)

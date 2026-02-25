@@ -29,6 +29,19 @@
       "already_configured": "Das Gerät mit dieser Seriennummer ist bereits konfiguriert."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EcoFlow PowerOcean Plus — Optionen",
+        "data": {
+          "num_battery_packs": "Anzahl Batterie-Packs"
+        },
+        "data_description": {
+          "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "battery_soc": {
@@ -52,6 +65,9 @@
       "battery_temperature": {
         "name": "Temperatur"
       },
+      "battery_temperature_mos": {
+        "name": "MOSFET-Temperatur"
+      },
       "battery_cycles": {
         "name": "Ladezyklen"
       },
@@ -70,6 +86,15 @@
       "total_soc": {
         "name": "Gesamt-Ladestand"
       },
+      "bp_remain_wh": {
+        "name": "Batterie-Gesamtenergie"
+      },
+      "bp_alive_count": {
+        "name": "Aktive Batterie-Module"
+      },
+      "bus_voltage": {
+        "name": "DC-Bus-Spannung"
+      },
       "phase_a_voltage": {
         "name": "Phase L1 Spannung"
       },
@@ -78,6 +103,12 @@
       },
       "phase_a_power": {
         "name": "Phase L1 Leistung"
+      },
+      "phase_a_reactive_power": {
+        "name": "Phase L1 Blindleistung"
+      },
+      "phase_a_apparent_power": {
+        "name": "Phase L1 Scheinleistung"
       },
       "phase_b_voltage": {
         "name": "Phase L2 Spannung"
@@ -88,6 +119,12 @@
       "phase_b_power": {
         "name": "Phase L2 Leistung"
       },
+      "phase_b_reactive_power": {
+        "name": "Phase L2 Blindleistung"
+      },
+      "phase_b_apparent_power": {
+        "name": "Phase L2 Scheinleistung"
+      },
       "phase_c_voltage": {
         "name": "Phase L3 Spannung"
       },
@@ -97,20 +134,50 @@
       "phase_c_power": {
         "name": "Phase L3 Leistung"
       },
+      "phase_c_reactive_power": {
+        "name": "Phase L3 Blindleistung"
+      },
+      "phase_c_apparent_power": {
+        "name": "Phase L3 Scheinleistung"
+      },
       "grid_frequency": {
         "name": "Netzfrequenz"
       },
       "mppt_1_power": {
         "name": "MPPT 1 Leistung"
       },
+      "mppt_1_voltage": {
+        "name": "MPPT 1 Spannung"
+      },
+      "mppt_1_current": {
+        "name": "MPPT 1 Strom"
+      },
       "mppt_2_power": {
         "name": "MPPT 2 Leistung"
+      },
+      "mppt_2_voltage": {
+        "name": "MPPT 2 Spannung"
+      },
+      "mppt_2_current": {
+        "name": "MPPT 2 Strom"
       },
       "mppt_3_power": {
         "name": "MPPT 3 Leistung"
       },
+      "mppt_3_voltage": {
+        "name": "MPPT 3 Spannung"
+      },
+      "mppt_3_current": {
+        "name": "MPPT 3 Strom"
+      },
       "mppt_4_power": {
         "name": "MPPT 4 Leistung"
+      },
+      "mppt_4_voltage": {
+        "name": "MPPT 4 Spannung"
+      },
+      "mppt_4_current": {
+        "name": "MPPT 4 Strom"
       },
       "solar_energy": {
         "name": "Solar-Energie"
@@ -126,6 +193,13 @@
       },
       "battery_charge_energy": {
         "name": "Batterie-Ladung"
+      },
+      "connection_status": {
+        "name": "Verbindungsstatus",
+        "state": {
+          "connected": "Verbunden",
+          "disconnected": "Getrennt"
+        }
       }
     }
   }

@@ -29,6 +29,19 @@
       "already_configured": "A device with this serial number is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EcoFlow PowerOcean Plus — Options",
+        "data": {
+          "num_battery_packs": "Number of Battery Packs"
+        },
+        "data_description": {
+          "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "battery_soc": {
@@ -52,6 +65,9 @@
       "battery_temperature": {
         "name": "Temperature"
       },
+      "battery_temperature_mos": {
+        "name": "MOSFET Temperature"
+      },
       "battery_cycles": {
         "name": "Charge Cycles"
       },
@@ -70,6 +86,15 @@
       "total_soc": {
         "name": "Total State of Charge"
       },
+      "bp_remain_wh": {
+        "name": "Total Battery Energy"
+      },
+      "bp_alive_count": {
+        "name": "Active Battery Modules"
+      },
+      "bus_voltage": {
+        "name": "DC Bus Voltage"
+      },
       "phase_a_voltage": {
         "name": "Phase L1 Voltage"
       },
@@ -78,6 +103,12 @@
       },
       "phase_a_power": {
         "name": "Phase L1 Power"
+      },
+      "phase_a_reactive_power": {
+        "name": "Phase L1 Reactive Power"
+      },
+      "phase_a_apparent_power": {
+        "name": "Phase L1 Apparent Power"
       },
       "phase_b_voltage": {
         "name": "Phase L2 Voltage"
@@ -88,6 +119,12 @@
       "phase_b_power": {
         "name": "Phase L2 Power"
       },
+      "phase_b_reactive_power": {
+        "name": "Phase L2 Reactive Power"
+      },
+      "phase_b_apparent_power": {
+        "name": "Phase L2 Apparent Power"
+      },
       "phase_c_voltage": {
         "name": "Phase L3 Voltage"
       },
@@ -97,20 +134,50 @@
       "phase_c_power": {
         "name": "Phase L3 Power"
       },
+      "phase_c_reactive_power": {
+        "name": "Phase L3 Reactive Power"
+      },
+      "phase_c_apparent_power": {
+        "name": "Phase L3 Apparent Power"
+      },
       "grid_frequency": {
         "name": "Grid Frequency"
       },
       "mppt_1_power": {
         "name": "MPPT 1 Power"
       },
+      "mppt_1_voltage": {
+        "name": "MPPT 1 Voltage"
+      },
+      "mppt_1_current": {
+        "name": "MPPT 1 Current"
+      },
       "mppt_2_power": {
         "name": "MPPT 2 Power"
+      },
+      "mppt_2_voltage": {
+        "name": "MPPT 2 Voltage"
+      },
+      "mppt_2_current": {
+        "name": "MPPT 2 Current"
       },
       "mppt_3_power": {
         "name": "MPPT 3 Power"
       },
+      "mppt_3_voltage": {
+        "name": "MPPT 3 Voltage"
+      },
+      "mppt_3_current": {
+        "name": "MPPT 3 Current"
+      },
       "mppt_4_power": {
         "name": "MPPT 4 Power"
+      },
+      "mppt_4_voltage": {
+        "name": "MPPT 4 Voltage"
+      },
+      "mppt_4_current": {
+        "name": "MPPT 4 Current"
       },
       "solar_energy": {
         "name": "Solar Energy"
@@ -126,6 +193,13 @@
       },
       "battery_charge_energy": {
         "name": "Battery Charged"
+      },
+      "connection_status": {
+        "name": "Connection Status",
+        "state": {
+          "connected": "Connected",
+          "disconnected": "Disconnected"
+        }
       }
     }
   }

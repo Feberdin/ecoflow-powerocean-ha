@@ -35,6 +35,11 @@ from .coordinator import EcoFlowCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Lädt die Integration neu wenn Options geändert wurden."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     Richtet einen Config Entry ein.
@@ -73,6 +78,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Sensor-Plattform initialisieren
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Bei Options-Änderungen Integration neu laden
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     _LOGGER.info(
         "EcoFlow PowerOcean Plus Integration gestartet (SN: %s)",

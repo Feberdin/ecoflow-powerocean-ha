@@ -26,8 +26,9 @@ from typing import Any
 import aiohttp
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -126,6 +127,37 @@ async def _validate_credentials(email: str, password: str) -> tuple[str, str]:
     return token, user_id
 
 
+class EcoFlowOptionsFlow(OptionsFlow):
+    """Options Flow — erlaubt nachträgliche Konfigurationsänderungen."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Zeigt das Options-Formular und speichert Änderungen."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        current_packs = int(
+            self.config_entry.options.get(
+                CONF_NUM_BATTERY_PACKS,
+                self.config_entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS),
+            )
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(CONF_NUM_BATTERY_PACKS, default=current_packs): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1,
+                        max=MAX_BATTERY_PACKS,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+            }),
+        )
+
+
 class EcoFlowPowerOceanConfigFlow(ConfigFlow, domain=DOMAIN):
     """
     Konfigurationsflow für die EcoFlow PowerOcean Plus Integration.
@@ -138,6 +170,12 @@ class EcoFlowPowerOceanConfigFlow(ConfigFlow, domain=DOMAIN):
     """
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> EcoFlowOptionsFlow:
+        """Gibt den Options Flow zurück."""
+        return EcoFlowOptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
