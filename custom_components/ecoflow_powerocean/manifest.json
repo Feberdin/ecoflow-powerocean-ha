@@ -1,7 +1,7 @@
 {
   "domain": "ecoflow_powerocean",
   "name": "EcoFlow PowerOcean",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "codeowners": [],
   "config_flow": true,
   "documentation": "https://github.com/Feberdin/ecoflow-powerocean-ha",
