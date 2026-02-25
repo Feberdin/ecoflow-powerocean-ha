@@ -111,6 +111,21 @@
       },
       "mppt_4_power": {
         "name": "MPPT 4 Leistung"
+      },
+      "solar_energy": {
+        "name": "Solar-Energie"
+      },
+      "grid_import_energy": {
+        "name": "Netz-Bezug"
+      },
+      "grid_export_energy": {
+        "name": "Netz-Einspeisung"
+      },
+      "battery_discharge_energy": {
+        "name": "Batterie-Entnahme"
+      },
+      "battery_charge_energy": {
+        "name": "Batterie-Ladung"
       }
     }
   }

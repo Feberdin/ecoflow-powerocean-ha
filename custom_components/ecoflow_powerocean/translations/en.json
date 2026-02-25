@@ -111,6 +111,21 @@
       },
       "mppt_4_power": {
         "name": "MPPT 4 Power"
+      },
+      "solar_energy": {
+        "name": "Solar Energy"
+      },
+      "grid_import_energy": {
+        "name": "Grid Import"
+      },
+      "grid_export_energy": {
+        "name": "Grid Export"
+      },
+      "battery_discharge_energy": {
+        "name": "Battery Discharged"
+      },
+      "battery_charge_energy": {
+        "name": "Battery Charged"
       }
     }
   }

@@ -66,97 +66,44 @@ Bis zu **9 Batterie-Packs** werden automatisch erkannt.
 
 ## Energie-Dashboard einrichten
 
-Das Energie-Dashboard benötigt **kumulierte Energiesensoren in kWh** (`device_class: energy`, `state_class: total_increasing`). Die EcoFlow-Sensoren liefern Momentleistung in **Watt** — daher sind zwei Schritte nötig:
+Die Integration liefert ab v0.2.2 **direkt kWh-Sensoren** für das Energie-Dashboard — kein YAML, keine Helfer nötig.
 
-1. Template-Sensoren anlegen (Leistung aufteilen, z. B. Netzbezug vs. Einspeisung)
-2. Riemann-Integral-Helfer anlegen (Watt → kWh integrieren)
+### Schritt 1: Integration aktualisieren
 
-### Schritt 1: Template-Sensoren in `configuration.yaml`
+HACS → EcoFlow PowerOcean → Aktualisieren → Home Assistant neu starten.
 
-Füge folgenden Block in deine `configuration.yaml` ein. Ersetze alle `[SN]` durch deine Seriennummer in **Kleinbuchstaben** (z. B. `r371zd1azh4u0484`).
+Nach dem Neustart erscheinen 5 neue Sensoren unter *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean*:
 
-```yaml
-template:
-  - sensor:
-      # ── Netz: Bezug (nur positive Werte) ─────────────────────
-      - name: "EcoFlow Netzbezug"
-        unique_id: ecoflow_grid_import
-        unit_of_measurement: "W"
-        device_class: power
-        state_class: measurement
-        state: >
-          {{ [states('sensor.ecoflow_powerocean_[SN]_grid_power') | float(0), 0] | max | round(1) }}
+| Sensor | Beschreibung |
+|--------|-------------|
+| **Solar-Energie** | Kumulierter PV-Ertrag (kWh) |
+| **Netz-Bezug** | Kumulierter Strombezug aus dem Netz (kWh) |
+| **Netz-Einspeisung** | Kumulierte Einspeisung ins Netz (kWh) |
+| **Batterie-Entnahme** | Kumulierte Energie aus der Batterie (kWh) |
+| **Batterie-Ladung** | Kumulierte Energie in die Batterie (kWh) |
 
-      # ── Netz: Einspeisung (nur negative Werte, als positiver Betrag) ──
-      - name: "EcoFlow Einspeisung"
-        unique_id: ecoflow_grid_export
-        unit_of_measurement: "W"
-        device_class: power
-        state_class: measurement
-        state: >
-          {{ [states('sensor.ecoflow_powerocean_[SN]_grid_power') | float(0) * -1, 0] | max | round(1) }}
+Die Zähler laufen kontinuierlich und bleiben nach HA-Neustarts erhalten.
 
-      # ── Batterie: Entladen (nur positive Werte) ───────────────
-      - name: "EcoFlow Batterie Entladen"
-        unique_id: ecoflow_battery_discharge
-        unit_of_measurement: "W"
-        device_class: power
-        state_class: measurement
-        state: >
-          {{ [states('sensor.ecoflow_powerocean_[SN]_battery_total_power') | float(0), 0] | max | round(1) }}
+### Schritt 2: Energie-Dashboard konfigurieren
 
-      # ── Batterie: Laden (nur negative Werte, als positiver Betrag) ───
-      - name: "EcoFlow Batterie Laden"
-        unique_id: ecoflow_battery_charge
-        unit_of_measurement: "W"
-        device_class: power
-        state_class: measurement
-        state: >
-          {{ [states('sensor.ecoflow_powerocean_[SN]_battery_total_power') | float(0) * -1, 0] | max | round(1) }}
-```
+Navigiere zu *Einstellungen → Dashboards → Energie* und trage die Sensoren ein:
 
-Nach dem Speichern: Home Assistant neu starten oder *Einstellungen → System → Konfiguration neu laden → Template-Entitäten*.
+| Dashboard-Bereich | Sensor |
+|-------------------|--------|
+| **Netz** → Strom aus dem Netz | `Solar PowerOcean Plus Netz-Bezug` |
+| **Netz** → Strom zurück ins Netz | `Solar PowerOcean Plus Netz-Einspeisung` |
+| **Solar** → Solaranlage | `Solar PowerOcean Plus Solar-Energie` |
+| **Heimspeicher** → Energie ins System | `Solar PowerOcean Plus Batterie-Entnahme` |
+| **Heimspeicher** → Energie aus dem System | `Solar PowerOcean Plus Batterie-Ladung` |
+| **Heimspeicher** → Aktueller Ladestand | `Solar PowerOcean Plus Gesamt-Ladestand` |
 
-### Schritt 2: Riemann-Integral-Helfer erstellen
-
-Navigiere zu *Einstellungen → Geräte & Dienste → Helfer → + Helfer erstellen → Integration — Riemann-Summe integral*.
-
-Erstelle für jeden der folgenden Sensoren einen Helfer:
-
-| Helfer-Name | Quell-Sensor | Methode |
-|-------------|-------------|---------|
-| EcoFlow Solar Energie | `sensor.ecoflow_powerocean_[SN]_solar_power` | Links |
-| EcoFlow Netzbezug Energie | `sensor.ecoflow_netzbezug` | Links |
-| EcoFlow Einspeisung Energie | `sensor.ecoflow_einspeisung` | Links |
-| EcoFlow Batterie Entladen Energie | `sensor.ecoflow_batterie_entladen` | Links |
-| EcoFlow Batterie Laden Energie | `sensor.ecoflow_batterie_laden` | Links |
-
-> Einheit wird automatisch auf `kWh` gesetzt wenn der Quell-Sensor `W` und `device_class: power` hat.
-
-### Schritt 3: Energie-Dashboard konfigurieren
-
-Navigiere zu *Einstellungen → Dashboards → Energie* (oder direkt über das Energie-Dashboard → Konfigurieren):
-
-| Dashboard-Bereich | Sensor | Typ |
-|-------------------|--------|-----|
-| **Netz** → Strom aus dem Netz | `EcoFlow Netzbezug Energie` | kWh |
-| **Netz** → Strom zurück ins Netz | `EcoFlow Einspeisung Energie` | kWh |
-| **Solar** → Solaranlage hinzufügen | `EcoFlow Solar Energie` | kWh |
-| **Heimspeicher** → Energie ins System | `EcoFlow Batterie Entladen Energie` | kWh |
-| **Heimspeicher** → Energie aus dem System | `EcoFlow Batterie Laden Energie` | kWh |
-| **Heimspeicher** → Aktueller Ladestand | `sensor.ecoflow_powerocean_[SN]_total_soc` | % |
-
-> Der Ladestand (`total_soc`) erscheint direkt ohne Integral-Helfer — er hat bereits `device_class: battery` und `state_class: measurement`.
-
-### Warum Template-Sensoren notwendig sind
-
-Das Energie-Dashboard benötigt für Netz und Batterie **getrennte Sensoren** für Bezug und Einspeisung bzw. Laden und Entladen. Da unsere `grid_power` und `battery_total_power` bidirektional sind (positiv = Bezug/Entladen, negativ = Einspeisung/Laden), teilen die Template-Sensoren den Wert auf.
+> Die Sensoren erscheinen in den Dropdowns automatisch, da sie `device_class: energy`, `state_class: total_increasing` und die Einheit `kWh` haben.
 
 ### Hinweise
 
-- Die Integral-Helfer zählen Energie ab dem Zeitpunkt ihrer Erstellung — historische Werte werden nicht rückwirkend berechnet.
-- Nach einem HA-Neustart laufen die Zähler weiter (HA speichert den letzten Wert).
-- Schwankt `grid_power` leicht um 0 W (±5 W), erscheinen minimale Werte bei Bezug **und** Einspeisung gleichzeitig — das ist normal und beeinflusst die Monatssummen kaum.
+- Die Zähler beginnen mit dem Zeitpunkt der ersten MQTT-Nachricht nach dem Update — historische Werte werden nicht rückwirkend berechnet.
+- Während HA offline ist (Neustart, Wartung) wird keine Energie gezählt — die Werte werden aber beim Neustart korrekt wiederhergestellt und laufen dann weiter.
+- Kleine Messschwankungen (±5 W) können dazu führen, dass gleichzeitig minimale Werte bei Bezug **und** Einspeisung erscheinen — das ist physikalisch normal und beeinflusst Monatssummen kaum.
 
 ---
 
