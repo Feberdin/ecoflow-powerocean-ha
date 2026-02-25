@@ -233,12 +233,15 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         blockierend ist. Der Client läuft danach in seinem eigenen Hintergrund-Thread
         (loop_start()) und kommuniziert über Callbacks mit HA.
 
-        Verwendet den certificateAccount als Client-ID — EcoFlow's Broker lehnt
-        anderweitige Client-IDs mit "Not authorized" ab.
+        Verwendet das Format "ANDROID_{uuid}_{user_id}" als Client-ID — genau
+        wie die EcoFlow App. Andere Formate werden mit "Not authorized" abgelehnt.
         """
-        # EcoFlow's Broker akzeptiert nur Client-IDs, die dem certificateAccount entsprechen.
-        # Ein beliebig gewählter Client-ID-String führt zu "Not authorized".
-        client_id = self._mqtt_user
+        # EcoFlow's Broker erwartet das Format "ANDROID_{uuid}_{user_id}".
+        # Die UUID wird deterministisch aus der Seriennummer abgeleitet, damit
+        # nach jedem HA-Neustart dieselbe Client-ID verwendet wird und das
+        # EcoFlow-Limit von 10 neuen Client-IDs pro Tag nicht überschritten wird.
+        stable_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"ha-ecoflow-{self.serial_number}")
+        client_id = f"ANDROID_{stable_uuid}_{self._user_id}"
 
         if _PAHO_V2:
             client = mqtt.Client(
