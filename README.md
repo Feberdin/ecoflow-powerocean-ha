@@ -66,30 +66,19 @@ Bis zu **9 Batterie-Packs** werden automatisch erkannt.
 
 ## Energie-Dashboard einrichten
 
-Das Home Assistant Energie-Dashboard zeigt Tages- und Monatswerte in **kWh**, die EcoFlow-Sensoren liefern jedoch Momentleistung in **Watt**. Es müssen daher Hilfsentitäten erstellt werden, die aus der Leistung eine Energiemenge berechnen (Riemann-Integration).
+Das Energie-Dashboard benötigt **kumulierte Energiesensoren in kWh** (`device_class: energy`, `state_class: total_increasing`). Die EcoFlow-Sensoren liefern Momentleistung in **Watt** — daher sind zwei Schritte nötig:
 
-### Schritt 1: Integral-Helfer erstellen
+1. Template-Sensoren anlegen (Leistung aufteilen, z. B. Netzbezug vs. Einspeisung)
+2. Riemann-Integral-Helfer anlegen (Watt → kWh integrieren)
 
-Navigiere zu *Einstellungen → Geräte & Dienste → Helfer → + Helfer erstellen → Integration — Riemann-Summe*.
+### Schritt 1: Template-Sensoren in `configuration.yaml`
 
-Erstelle folgende Helfer (Methode: **Links-Rechteck**, Präfix: `1/3600` für Wh→kWh):
-
-| Helfer-Name | Quell-Sensor | Einheit |
-|-------------|-------------|---------|
-| EcoFlow Solar Energie | `sensor.ecoflow_powerocean_[SN]_solar_power` | kWh |
-| EcoFlow Haus-Energie | `sensor.ecoflow_powerocean_[SN]_load_power` | kWh |
-| EcoFlow Batterie Entladen | `sensor.ecoflow_powerocean_[SN]_battery_total_power` (nur positiv) | kWh |
-| EcoFlow Batterie Laden | `sensor.ecoflow_powerocean_[SN]_battery_total_power` (nur negativ, Betrag) | kWh |
-
-> **`[SN]`** durch deine Seriennummer ersetzen (Kleinbuchstaben, z. B. `r371zd1azh4u0484`).
-
-Für **Netzbezug** und **Einspeisung** müssen Template-Sensoren erstellt werden, da `grid_power` bidirektional ist (positiv = Bezug, negativ = Einspeisung):
-
-#### Template-Sensoren in `configuration.yaml` eintragen
+Füge folgenden Block in deine `configuration.yaml` ein. Ersetze alle `[SN]` durch deine Seriennummer in **Kleinbuchstaben** (z. B. `r371zd1azh4u0484`).
 
 ```yaml
 template:
   - sensor:
+      # ── Netz: Bezug (nur positive Werte) ─────────────────────
       - name: "EcoFlow Netzbezug"
         unique_id: ecoflow_grid_import
         unit_of_measurement: "W"
@@ -98,6 +87,7 @@ template:
         state: >
           {{ [states('sensor.ecoflow_powerocean_[SN]_grid_power') | float(0), 0] | max | round(1) }}
 
+      # ── Netz: Einspeisung (nur negative Werte, als positiver Betrag) ──
       - name: "EcoFlow Einspeisung"
         unique_id: ecoflow_grid_export
         unit_of_measurement: "W"
@@ -105,33 +95,68 @@ template:
         state_class: measurement
         state: >
           {{ [states('sensor.ecoflow_powerocean_[SN]_grid_power') | float(0) * -1, 0] | max | round(1) }}
+
+      # ── Batterie: Entladen (nur positive Werte) ───────────────
+      - name: "EcoFlow Batterie Entladen"
+        unique_id: ecoflow_battery_discharge
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {{ [states('sensor.ecoflow_powerocean_[SN]_battery_total_power') | float(0), 0] | max | round(1) }}
+
+      # ── Batterie: Laden (nur negative Werte, als positiver Betrag) ───
+      - name: "EcoFlow Batterie Laden"
+        unique_id: ecoflow_battery_charge
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {{ [states('sensor.ecoflow_powerocean_[SN]_battery_total_power') | float(0) * -1, 0] | max | round(1) }}
 ```
 
-Danach für beide Template-Sensoren ebenfalls Integral-Helfer erstellen:
+Nach dem Speichern: Home Assistant neu starten oder *Einstellungen → System → Konfiguration neu laden → Template-Entitäten*.
 
-| Helfer-Name | Quell-Sensor |
-|-------------|-------------|
-| EcoFlow Netzbezug Energie | `sensor.ecoflow_netzbezug` |
-| EcoFlow Einspeisung Energie | `sensor.ecoflow_einspeisung` |
+### Schritt 2: Riemann-Integral-Helfer erstellen
 
-### Schritt 2: Energie-Dashboard konfigurieren
+Navigiere zu *Einstellungen → Geräte & Dienste → Helfer → + Helfer erstellen → Integration — Riemann-Summe integral*.
 
-Navigiere zu *Energie → Energie-Dashboard einrichten* (oder *Einstellungen → Dashboards → Energie*):
+Erstelle für jeden der folgenden Sensoren einen Helfer:
 
-| Dashboard-Bereich | Sensor |
-|-------------------|--------|
-| **Netz** → Strom vom Netz | `EcoFlow Netzbezug Energie` (kWh) |
-| **Netz** → Strom ans Netz | `EcoFlow Einspeisung Energie` (kWh) |
-| **Solar** → Solar-Energie | `EcoFlow Solar Energie` (kWh) |
-| **Heimspeicher** → Eingehende Energie | `EcoFlow Batterie Laden` (kWh) |
-| **Heimspeicher** → Ausgehende Energie | `EcoFlow Batterie Entladen` (kWh) |
-| **Heimspeicher** → Ladestand | `sensor.ecoflow_powerocean_[SN]_total_soc` (%) |
+| Helfer-Name | Quell-Sensor | Methode |
+|-------------|-------------|---------|
+| EcoFlow Solar Energie | `sensor.ecoflow_powerocean_[SN]_solar_power` | Links |
+| EcoFlow Netzbezug Energie | `sensor.ecoflow_netzbezug` | Links |
+| EcoFlow Einspeisung Energie | `sensor.ecoflow_einspeisung` | Links |
+| EcoFlow Batterie Entladen Energie | `sensor.ecoflow_batterie_entladen` | Links |
+| EcoFlow Batterie Laden Energie | `sensor.ecoflow_batterie_laden` | Links |
+
+> Einheit wird automatisch auf `kWh` gesetzt wenn der Quell-Sensor `W` und `device_class: power` hat.
+
+### Schritt 3: Energie-Dashboard konfigurieren
+
+Navigiere zu *Einstellungen → Dashboards → Energie* (oder direkt über das Energie-Dashboard → Konfigurieren):
+
+| Dashboard-Bereich | Sensor | Typ |
+|-------------------|--------|-----|
+| **Netz** → Strom aus dem Netz | `EcoFlow Netzbezug Energie` | kWh |
+| **Netz** → Strom zurück ins Netz | `EcoFlow Einspeisung Energie` | kWh |
+| **Solar** → Solaranlage hinzufügen | `EcoFlow Solar Energie` | kWh |
+| **Heimspeicher** → Energie ins System | `EcoFlow Batterie Entladen Energie` | kWh |
+| **Heimspeicher** → Energie aus dem System | `EcoFlow Batterie Laden Energie` | kWh |
+| **Heimspeicher** → Aktueller Ladestand | `sensor.ecoflow_powerocean_[SN]_total_soc` | % |
+
+> Der Ladestand (`total_soc`) erscheint direkt ohne Integral-Helfer — er hat bereits `device_class: battery` und `state_class: measurement`.
+
+### Warum Template-Sensoren notwendig sind
+
+Das Energie-Dashboard benötigt für Netz und Batterie **getrennte Sensoren** für Bezug und Einspeisung bzw. Laden und Entladen. Da unsere `grid_power` und `battery_total_power` bidirektional sind (positiv = Bezug/Entladen, negativ = Einspeisung/Laden), teilen die Template-Sensoren den Wert auf.
 
 ### Hinweise
 
-- Die Integral-Helfer sammeln Energie nur solange HA läuft. Nach einem Neustart beginnen sie bei 0.
-- Für langfristige Statistiken empfiehlt sich der Einsatz der [Recorder-Komponente](https://www.home-assistant.io/integrations/recorder/) mit ausreichend Speicher.
-- Die Netz-Leistung (`grid_power`) kann leicht schwanken — Werte knapp unter 0 W bedeuten minimale Einspeisung, die das Dashboard als "Einspeisung" ausweist.
+- Die Integral-Helfer zählen Energie ab dem Zeitpunkt ihrer Erstellung — historische Werte werden nicht rückwirkend berechnet.
+- Nach einem HA-Neustart laufen die Zähler weiter (HA speichert den letzten Wert).
+- Schwankt `grid_power` leicht um 0 W (±5 W), erscheinen minimale Werte bei Bezug **und** Einspeisung gleichzeitig — das ist normal und beeinflusst die Monatssummen kaum.
 
 ---
 
