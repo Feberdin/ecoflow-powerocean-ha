@@ -7,12 +7,14 @@
         "data": {
           "email": "EcoFlow Account Email",
           "password": "EcoFlow Account Password",
-          "serial_number": "PowerOcean Plus Serial Number"
+          "serial_number": "PowerOcean Plus Serial Number",
+          "num_battery_packs": "Number of Battery Packs"
         },
         "data_description": {
           "email": "Email address of your EcoFlow user account",
           "password": "Password of your EcoFlow user account (stored encrypted)",
-          "serial_number": "Device serial number (e.g. R371ZD1AZH4U0484) — found on the device label or in the EcoFlow App under device details."
+          "serial_number": "Device serial number (e.g. R371ZD1AZH4U0484) — found on the device label or in the EcoFlow App under device details.",
+          "num_battery_packs": "Number of physically installed battery packs (1–9). Default for a 10 kWh system with two 5 kWh packs: 2."
         }
       }
     },

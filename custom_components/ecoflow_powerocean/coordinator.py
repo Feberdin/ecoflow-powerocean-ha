@@ -63,7 +63,6 @@ from .const import (
     DATA_BATTERIES,
     DATA_ENERGY_STREAM,
     DOMAIN,
-    MQTT_FIRST_DATA_TIMEOUT,
     MQTT_HOST,
     MQTT_KEEPALIVE,
     MQTT_PORT,
@@ -119,9 +118,6 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._mqtt_client: mqtt.Client | None = None
         self._mqtt_connected: bool = False
         self._mqtt_lock = threading.Lock()
-
-        # Synchronisierung für erste Datenlieferung
-        self._first_data_event: asyncio.Event = asyncio.Event()
 
         # Initialer Datensatz
         self.data: dict[str, Any] = {
@@ -337,9 +333,6 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 DATA_ENERGY_STREAM: new_energy,
             }
 
-        # Erst-Daten-Event thread-sicher setzen (asyncio.Event ist nicht thread-safe!)
-        self.hass.loop.call_soon_threadsafe(self._first_data_event.set)
-
         # async_set_updated_data ist ein @callback (keine Koroutine) — muss mit
         # call_soon_threadsafe in den Event-Loop eingeplant werden, nicht mit
         # run_coroutine_threadsafe (das erwartet eine echte Koroutine).
@@ -377,11 +370,12 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         Wird periodisch vom DataUpdateCoordinator aufgerufen (Fallback alle 5 Min.).
 
-        Bei erster Ausführung: wartet auf die erste MQTT-Datenlieferung.
-        Bei Folgeaufrufen: sendet eine GET-Anfrage und gibt aktuelle Daten zurück.
+        Sendet eine GET-Anfrage um das Gerät zu einer sofortigen Datenlieferung zu
+        bewegen. Die eigentlichen Daten kommen asynchron über den MQTT-Callback
+        und werden direkt per async_set_updated_data() an HA gemeldet.
 
         Returns:
-            Aktueller Datensatz mit Batterie- und Energiefluss-Daten.
+            Aktueller Datensatz (kann beim ersten Aufruf noch leer sein).
 
         Raises:
             UpdateFailed: Bei schwerwiegenden Verbindungsfehlern.
@@ -392,23 +386,9 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except Exception as exc:
                 raise UpdateFailed(f"Neuverbindung fehlgeschlagen: {exc}") from exc
 
-        # GET-Anfrage senden (für Fallback-Refresh)
+        # GET-Anfrage senden (löst sofortige Geräteantwort aus)
         if self._mqtt_connected:
             await self.hass.async_add_executor_job(self._send_get_request)
-
-        # Auf erste Daten warten (nur beim allerersten Aufruf)
-        if not self._first_data_event.is_set():
-            try:
-                await asyncio.wait_for(
-                    asyncio.shield(self._first_data_event.wait()),
-                    timeout=float(MQTT_FIRST_DATA_TIMEOUT),
-                )
-            except asyncio.TimeoutError:
-                _LOGGER.warning(
-                    "Timeout beim Warten auf erste MQTT-Daten von %s. "
-                    "Mögliche Ursachen: Gerät offline, Netzwerkproblem.",
-                    self.serial_number,
-                )
 
         return self.data
 

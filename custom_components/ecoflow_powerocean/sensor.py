@@ -57,15 +57,16 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_NUM_BATTERY_PACKS,
     CONF_SERIAL_NUMBER,
     DATA_BATTERIES,
-    DATA_ENERGY_STREAM,
+    DEFAULT_NUM_BATTERY_PACKS,
     DOMAIN,
     MANUFACTURER,
     MODEL,
 )
 from .coordinator import EcoFlowCoordinator
-from .proto_decoder import BatteryPackData, EnergyStreamData
+from .proto_decoder import BatteryPackData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -182,9 +183,9 @@ async def async_setup_entry(
     """
     Initialisiert alle Sensor-Entitäten für einen Config Entry.
 
-    Wird einmalig beim Laden der Integration aufgerufen. Erstellt Sensoren
-    für alle bereits bekannten Batterie-Packs und registriert einen Listener,
-    der bei neuen Packs automatisch weitere Sensoren anlegt.
+    Erstellt beim Start sofort Sensoren für alle konfigurierten Batterie-Packs
+    (Standard: 2). Die Sensoren zeigen "Unavailable" bis die ersten MQTT-Daten
+    vom Gerät eintreffen. Keine dynamische Entitäten-Erstellung notwendig.
 
     Args:
         hass:              Home Assistant Instanz.
@@ -193,6 +194,7 @@ async def async_setup_entry(
     """
     coordinator: EcoFlowCoordinator = hass.data[DOMAIN][entry.entry_id]
     serial = entry.data[CONF_SERIAL_NUMBER]
+    num_packs: int = entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS)
 
     # Gemeinsame Geräteinformationen für alle Sensoren dieser Anlage
     device_info = DeviceInfo(
@@ -204,37 +206,22 @@ async def async_setup_entry(
         configuration_url="https://www.ecoflow.com",
     )
 
-    # Bereits bekannte Packs sofort anlegen
-    known_pack_indices: set[int] = set()
+    # Alle Batterie-Pack-Sensoren sofort anlegen (Pack 1 bis num_packs).
+    # Sensoren zeigen "Unavailable" bis MQTT-Daten für den jeweiligen Pack
+    # eintreffen — kein Warten auf Gerätedaten beim Setup nötig.
     entities: list[SensorEntity] = []
-
-    batteries: dict[int, BatteryPackData] = coordinator.data.get(DATA_BATTERIES, {})
-    for pack_index, pack_data in batteries.items():
+    for pack_index in range(1, num_packs + 1):
         entities.extend(
             _create_battery_sensors(coordinator, device_info, serial, pack_index)
         )
-        known_pack_indices.add(pack_index)
 
+    _LOGGER.debug(
+        "Erstelle %d Sensor-Entitäten für %d Batterie-Pack(s) (SN: %s)",
+        len(entities),
+        num_packs,
+        serial,
+    )
     async_add_entities(entities)
-
-    # Listener für dynamisch erkannte neue Batterie-Packs
-    def _handle_coordinator_update() -> None:
-        """Prüft ob neue Batterie-Packs erkannt wurden und legt ggf. Sensoren an."""
-        new_entities: list[SensorEntity] = []
-        current_batteries: dict[int, BatteryPackData] = coordinator.data.get(DATA_BATTERIES, {})
-
-        for pack_index in current_batteries:
-            if pack_index not in known_pack_indices:
-                _LOGGER.info("Neuer Batterie-Pack erkannt: Index %d", pack_index)
-                new_entities.extend(
-                    _create_battery_sensors(coordinator, device_info, serial, pack_index)
-                )
-                known_pack_indices.add(pack_index)
-
-        if new_entities:
-            async_add_entities(new_entities)
-
-    coordinator.async_add_listener(_handle_coordinator_update)
 
 
 def _create_battery_sensors(

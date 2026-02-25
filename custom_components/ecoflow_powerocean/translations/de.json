@@ -7,12 +7,14 @@
         "data": {
           "email": "EcoFlow-Konto E-Mail",
           "password": "EcoFlow-Konto Passwort",
-          "serial_number": "Seriennummer des PowerOcean Plus"
+          "serial_number": "Seriennummer des PowerOcean Plus",
+          "num_battery_packs": "Anzahl Batterie-Packs"
         },
         "data_description": {
           "email": "E-Mail-Adresse deines EcoFlow-Benutzerkontos",
           "password": "Passwort des EcoFlow-Benutzerkontos (wird verschlüsselt gespeichert)",
-          "serial_number": "Seriennummer des Geräts (z. B. R371ZD1AZH4U0484) — auf dem Typenschild oder in der EcoFlow App unter Gerätedetails."
+          "serial_number": "Seriennummer des Geräts (z. B. R371ZD1AZH4U0484) — auf dem Typenschild oder in der EcoFlow App unter Gerätedetails.",
+          "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Standard für eine 10-kWh-Anlage: 2."
         }
       }
     },

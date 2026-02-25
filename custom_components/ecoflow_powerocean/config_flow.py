@@ -29,12 +29,25 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
 )
 
-from .const import API_LOGIN_URL, API_TIMEOUT, CONF_SERIAL_NUMBER, DOMAIN, MODEL, MANUFACTURER
+from .const import (
+    API_LOGIN_URL,
+    API_TIMEOUT,
+    CONF_NUM_BATTERY_PACKS,
+    CONF_SERIAL_NUMBER,
+    DEFAULT_NUM_BATTERY_PACKS,
+    DOMAIN,
+    MANUFACTURER,
+    MAX_BATTERY_PACKS,
+    MODEL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +62,14 @@ STEP_USER_SCHEMA = vol.Schema(
         ),
         vol.Required(CONF_SERIAL_NUMBER): TextSelector(
             TextSelectorConfig(type=TextSelectorType.TEXT)
+        ),
+        vol.Optional(CONF_NUM_BATTERY_PACKS, default=DEFAULT_NUM_BATTERY_PACKS): NumberSelector(
+            NumberSelectorConfig(
+                min=1,
+                max=MAX_BATTERY_PACKS,
+                step=1,
+                mode=NumberSelectorMode.BOX,
+            )
         ),
     }
 )
@@ -171,6 +192,7 @@ class EcoFlowPowerOceanConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_EMAIL: email,
                         CONF_PASSWORD: password,
                         CONF_SERIAL_NUMBER: serial,
+                        CONF_NUM_BATTERY_PACKS: int(user_input[CONF_NUM_BATTERY_PACKS]),
                     },
                 )
 

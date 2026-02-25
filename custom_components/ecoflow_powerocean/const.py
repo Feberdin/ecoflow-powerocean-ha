@@ -21,6 +21,15 @@ MODEL = "PowerOcean Plus"
 CONF_SERIAL_NUMBER = "serial_number"
 """Seriennummer des PowerOcean Plus Geräts (z. B. R371ZD1AZH4U0484)."""
 
+CONF_NUM_BATTERY_PACKS = "num_battery_packs"
+"""Anzahl der installierten Batterie-Packs (Standard: 2). Bestimmt wie viele
+Sensor-Gruppen in Home Assistant angelegt werden. Muss der tatsächlichen
+Anzahl der physisch installierten EcoFlow Batterie-Packs entsprechen."""
+
+DEFAULT_NUM_BATTERY_PACKS = 2
+"""Standard-Anzahl Batterie-Packs — passend für eine typische 10-kWh-Installation
+mit zwei 5-kWh EcoFlow Packs."""
+
 # Hinweis: CONF_EMAIL und CONF_PASSWORD kommen aus homeassistant.const
 
 # ── EcoFlow Cloud API ─────────────────────────────────────────────────────────
