@@ -69,14 +69,13 @@ from .const import (
     CONF_SERIAL_NUMBER,
     DATA_BATTERIES,
     DATA_EMS_HEARTBEAT,
-    DATA_ENERGY_STREAM,
     DEFAULT_NUM_BATTERY_PACKS,
     DOMAIN,
     MANUFACTURER,
     MODEL,
 )
 from .coordinator import EcoFlowCoordinator
-from .proto_decoder import BatteryPackData, EmsHeartbeatData, EnergyStreamData
+from .proto_decoder import BatteryPackData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -185,7 +184,16 @@ BATTERY_SENSOR_TYPES: tuple[EcoFlowBatterySensorDescription, ...] = (
 )
 
 
-# ── Systemweite Sensoren — Energiefluss ───────────────────────────────────────
+# ── Systemweite Sensoren — Energiefluss (aus EMS_HEARTBEAT abgeleitet) ────────
+#
+# Das Gerät sendet JTS1_ENERGY_STREAM_REPORT (cmdId=33) nicht zuverlässig.
+# Die Werte werden daher aus JTS1_EMS_HEARTBEAT berechnet:
+#
+#   solar_power   = Summe der MPPT-String-Leistungen
+#   grid_power    = Summe der Phasenleistungen (negativ = Einspeisung)
+#   load_power    = solar + battery + grid  (Energiebilanz)
+#   battery_total = emsBpPower (Feld 59 im EMS_HEARTBEAT)
+#   total_soc     = Durchschnitt der Pack-SOCs aus DATA_BATTERIES
 
 ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
 
@@ -196,8 +204,8 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:solar-power",
-        data_key=DATA_ENERGY_STREAM,
-        value_fn=lambda d: round(d.solar_w, 1),
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(sum(s.power_w for s in d.mppt_strings), 1),
     ),
 
     EcoFlowSystemSensorDescription(
@@ -207,8 +215,9 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower",
-        data_key=DATA_ENERGY_STREAM,
-        value_fn=lambda d: round(d.grid_w, 1),
+        data_key=DATA_EMS_HEARTBEAT,
+        # Phasen-actPwr: negativ = Einspeisung ins Netz, positiv = Netzbezug
+        value_fn=lambda d: round(d.phase_a.act_pwr + d.phase_b.act_pwr + d.phase_c.act_pwr, 1),
     ),
 
     EcoFlowSystemSensorDescription(
@@ -218,8 +227,14 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:home-lightning-bolt",
-        data_key=DATA_ENERGY_STREAM,
-        value_fn=lambda d: round(d.load_w, 1),
+        data_key=DATA_EMS_HEARTBEAT,
+        # Energiebilanz: Solar + Batterie + Netz(import/export) = Last
+        value_fn=lambda d: round(
+            sum(s.power_w for s in d.mppt_strings)
+            + d.battery_power_w
+            + (d.phase_a.act_pwr + d.phase_b.act_pwr + d.phase_c.act_pwr),
+            1,
+        ),
     ),
 
     EcoFlowSystemSensorDescription(
@@ -229,8 +244,8 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-charging",
-        data_key=DATA_ENERGY_STREAM,
-        value_fn=lambda d: round(d.battery_w, 1),
+        data_key=DATA_EMS_HEARTBEAT,
+        value_fn=lambda d: round(d.battery_power_w, 1),
     ),
 
     EcoFlowSystemSensorDescription(
@@ -239,8 +254,9 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
-        data_key=DATA_ENERGY_STREAM,
-        value_fn=lambda d: d.soc,
+        # SOC aus Batterie-Pack-Daten (DATA_BATTERIES = dict {index: BatteryPackData})
+        data_key=DATA_BATTERIES,
+        value_fn=lambda d: int(sum(p.soc for p in d.values()) / len(d)) if d else None,
     ),
 )
 
@@ -351,18 +367,6 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         data_key=DATA_EMS_HEARTBEAT,
         value_fn=lambda d: round(d.frequency_hz, 2),
-    ),
-
-    # Batterie-Wechselrichter
-    EcoFlowSystemSensorDescription(
-        key="battery_inverter_power",
-        translation_key="battery_inverter_power",
-        native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:battery-charging",
-        data_key=DATA_EMS_HEARTBEAT,
-        value_fn=lambda d: round(d.battery_power_w, 1),
     ),
 
     # MPPT-Strings

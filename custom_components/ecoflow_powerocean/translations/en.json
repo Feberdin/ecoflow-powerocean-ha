@@ -100,9 +100,6 @@
       "grid_frequency": {
         "name": "Grid Frequency"
       },
-      "battery_inverter_power": {
-        "name": "Battery Inverter Power"
-      },
       "mppt_1_power": {
         "name": "MPPT 1 Power"
       },
