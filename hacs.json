@@ -1,0 +1,6 @@
+{
+  "name": "EcoFlow PowerOcean",
+  "filename": "ecoflow_powerocean.zip",
+  "render_readme": true,
+  "homeassistant": "2024.1.0"
+}

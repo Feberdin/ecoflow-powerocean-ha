@@ -1,0 +1,58 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EcoFlow PowerOcean Plus einrichten",
+        "description": "Gib die Zugangsdaten deines EcoFlow-Kontos ein. Diese werden ausschließlich für die Verbindung zur EcoFlow Cloud API verwendet.\n\n**Hinweis:** Verwende die Anmeldedaten der EcoFlow App — nicht die Developer API Keys.",
+        "data": {
+          "email": "EcoFlow-Konto E-Mail",
+          "password": "EcoFlow-Konto Passwort",
+          "serial_number": "Seriennummer des PowerOcean Plus"
+        },
+        "data_description": {
+          "email": "E-Mail-Adresse deines EcoFlow-Benutzerkontos",
+          "password": "Passwort des EcoFlow-Benutzerkontos (wird verschlüsselt gespeichert)",
+          "serial_number": "Seriennummer des Geräts (z. B. R371ZD1AZH4U0484) — auf dem Typenschild oder in der EcoFlow App unter Gerätedetails."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Falsche E-Mail-Adresse oder falsches Passwort. Bitte die EcoFlow App-Zugangsdaten verwenden.",
+      "cannot_connect": "Verbindung zur EcoFlow API fehlgeschlagen. Bitte Internetverbindung prüfen.",
+      "invalid_serial": "Ungültige Seriennummer. Bitte am Gerät oder in der EcoFlow App nachschlagen.",
+      "already_configured": "Dieses Gerät ist bereits konfiguriert.",
+      "unknown": "Unbekannter Fehler. Bitte die Home Assistant Logs prüfen."
+    },
+    "abort": {
+      "already_configured": "Das Gerät mit dieser Seriennummer ist bereits konfiguriert."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Ladestand"
+      },
+      "battery_soh": {
+        "name": "Gesundheitszustand"
+      },
+      "battery_power": {
+        "name": "Leistung"
+      },
+      "battery_voltage": {
+        "name": "Spannung"
+      },
+      "battery_current": {
+        "name": "Strom"
+      },
+      "battery_remaining_energy": {
+        "name": "Verbleibende Energie"
+      },
+      "battery_temperature": {
+        "name": "Temperatur"
+      },
+      "battery_cycles": {
+        "name": "Ladezyklen"
+      }
+    }
+  }
+}

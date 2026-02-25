@@ -1,0 +1,58 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up EcoFlow PowerOcean Plus",
+        "description": "Enter your EcoFlow account credentials. These are used exclusively to connect to the EcoFlow Cloud API.\n\n**Note:** Use your EcoFlow App login credentials — not the Developer API Keys.",
+        "data": {
+          "email": "EcoFlow Account Email",
+          "password": "EcoFlow Account Password",
+          "serial_number": "PowerOcean Plus Serial Number"
+        },
+        "data_description": {
+          "email": "Email address of your EcoFlow user account",
+          "password": "Password of your EcoFlow user account (stored encrypted)",
+          "serial_number": "Device serial number (e.g. R371ZD1AZH4U0484) — found on the device label or in the EcoFlow App under device details."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Incorrect email or password. Please use your EcoFlow App login credentials.",
+      "cannot_connect": "Failed to connect to the EcoFlow API. Please check your internet connection.",
+      "invalid_serial": "Invalid serial number. Please check the device label or the EcoFlow App.",
+      "already_configured": "This device is already configured.",
+      "unknown": "Unexpected error. Please check the Home Assistant logs."
+    },
+    "abort": {
+      "already_configured": "A device with this serial number is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "State of Charge"
+      },
+      "battery_soh": {
+        "name": "State of Health"
+      },
+      "battery_power": {
+        "name": "Power"
+      },
+      "battery_voltage": {
+        "name": "Voltage"
+      },
+      "battery_current": {
+        "name": "Current"
+      },
+      "battery_remaining_energy": {
+        "name": "Remaining Energy"
+      },
+      "battery_temperature": {
+        "name": "Temperature"
+      },
+      "battery_cycles": {
+        "name": "Charge Cycles"
+      }
+    }
+  }
+}

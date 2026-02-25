@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Home Assistant
+.storage/
+.HA_VERSION
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp

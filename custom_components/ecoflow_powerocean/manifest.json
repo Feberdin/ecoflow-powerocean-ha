@@ -1,0 +1,14 @@
+{
+  "domain": "ecoflow_powerocean",
+  "name": "EcoFlow PowerOcean",
+  "version": "0.1.0",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/Feberdin/ecoflow-powerocean-ha",
+  "issue_tracker": "https://github.com/Feberdin/ecoflow-powerocean-ha/issues",
+  "iot_class": "cloud_push",
+  "requirements": ["paho-mqtt>=1.6.1"],
+  "dependencies": [],
+  "after_dependencies": [],
+  "integration_type": "device"
+}
