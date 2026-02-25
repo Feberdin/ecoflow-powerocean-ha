@@ -61,6 +61,7 @@ from .const import (
     CMD_ID_ENERGY_STREAM,
     CONF_SERIAL_NUMBER,
     DATA_BATTERIES,
+    DATA_EMS_HEARTBEAT,
     DATA_ENERGY_STREAM,
     DOMAIN,
     MQTT_HOST,
@@ -70,7 +71,7 @@ from .const import (
     TOPIC_DEVICE_PROPERTY,
     TOPIC_GET,
 )
-from .proto_decoder import BatteryPackData, EnergyStreamData, decode_mqtt_payload
+from .proto_decoder import BatteryPackData, EmsHeartbeatData, EnergyStreamData, decode_mqtt_payload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,6 +124,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.data: dict[str, Any] = {
             DATA_BATTERIES: {},
             DATA_ENERGY_STREAM: None,
+            DATA_EMS_HEARTBEAT: None,
         }
 
     # ── Öffentliche Setup-Methode ─────────────────────────────────────────────
@@ -317,12 +319,12 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         Das Routing zu HA erfolgt thread-sicher über hass.loop.call_soon_threadsafe().
         """
         try:
-            battery_packs, energy_stream = decode_mqtt_payload(msg.payload)
+            battery_packs, energy_stream, ems_heartbeat = decode_mqtt_payload(msg.payload)
         except Exception as exc:
             _LOGGER.debug("Fehler beim Dekodieren der MQTT-Payload: %s", exc)
             return
 
-        if not battery_packs and energy_stream is None:
+        if not battery_packs and energy_stream is None and ems_heartbeat is None:
             return
 
         # Vorhandene Daten aktualisieren (nicht überschreiben)
@@ -332,10 +334,12 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 new_batteries[pack.pack_index] = pack
 
             new_energy = energy_stream if energy_stream is not None else self.data.get(DATA_ENERGY_STREAM)
+            new_ems = ems_heartbeat if ems_heartbeat is not None else self.data.get(DATA_EMS_HEARTBEAT)
 
             new_data = {
                 DATA_BATTERIES: new_batteries,
                 DATA_ENERGY_STREAM: new_energy,
+                DATA_EMS_HEARTBEAT: new_ems,
             }
 
         # async_set_updated_data ist ein @callback (keine Koroutine) — muss mit

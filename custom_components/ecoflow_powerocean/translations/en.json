@@ -54,6 +54,66 @@
       },
       "battery_cycles": {
         "name": "Charge Cycles"
+      },
+      "solar_power": {
+        "name": "Solar Power"
+      },
+      "grid_power": {
+        "name": "Grid Power"
+      },
+      "load_power": {
+        "name": "Load Power"
+      },
+      "battery_total_power": {
+        "name": "Total Battery Power"
+      },
+      "total_soc": {
+        "name": "Total State of Charge"
+      },
+      "phase_a_voltage": {
+        "name": "Phase L1 Voltage"
+      },
+      "phase_a_current": {
+        "name": "Phase L1 Current"
+      },
+      "phase_a_power": {
+        "name": "Phase L1 Power"
+      },
+      "phase_b_voltage": {
+        "name": "Phase L2 Voltage"
+      },
+      "phase_b_current": {
+        "name": "Phase L2 Current"
+      },
+      "phase_b_power": {
+        "name": "Phase L2 Power"
+      },
+      "phase_c_voltage": {
+        "name": "Phase L3 Voltage"
+      },
+      "phase_c_current": {
+        "name": "Phase L3 Current"
+      },
+      "phase_c_power": {
+        "name": "Phase L3 Power"
+      },
+      "grid_frequency": {
+        "name": "Grid Frequency"
+      },
+      "battery_inverter_power": {
+        "name": "Battery Inverter Power"
+      },
+      "mppt_1_power": {
+        "name": "MPPT 1 Power"
+      },
+      "mppt_2_power": {
+        "name": "MPPT 2 Power"
+      },
+      "mppt_3_power": {
+        "name": "MPPT 3 Power"
+      },
+      "mppt_4_power": {
+        "name": "MPPT 4 Power"
       }
     }
   }

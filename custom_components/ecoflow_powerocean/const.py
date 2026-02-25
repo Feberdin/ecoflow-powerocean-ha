@@ -99,5 +99,8 @@ DATA_BATTERIES = "batteries"
 DATA_ENERGY_STREAM = "energy_stream"
 """Schlüssel im Coordinator-Datensatz für JTS1_ENERGY_STREAM_REPORT Daten."""
 
+DATA_EMS_HEARTBEAT = "ems_heartbeat"
+"""Schlüssel im Coordinator-Datensatz für JTS1_EMS_HEARTBEAT Daten (3-Phasen, MPPT)."""
+
 MAX_BATTERY_PACKS = 9
 """Maximale Anzahl unterstützter Batterie-Packs (lt. EcoFlow Spezifikation)."""

@@ -90,6 +90,52 @@ class BatteryPackData:
 
 
 @dataclass
+class PhaseData:
+    """Messwerte einer einzelnen Wechselstromphase (aus JTS1_EMS_HEARTBEAT)."""
+    volt: float = 0.0
+    """Phasenspannung in Volt."""
+    amp: float = 0.0
+    """Phasenstrom in Ampere."""
+    act_pwr: float = 0.0
+    """Wirkleistung in Watt."""
+
+
+@dataclass
+class MpptStringData:
+    """Messwerte eines einzelnen MPPT-PV-Strings (aus JTS1_EMS_HEARTBEAT)."""
+    index: int = 0
+    """String-Index (1-basiert)."""
+    volt: float = 0.0
+    """String-Spannung in Volt."""
+    amp: float = 0.0
+    """String-Strom in Ampere."""
+    power_w: float = 0.0
+    """String-Leistung in Watt."""
+
+
+@dataclass
+class EmsHeartbeatData:
+    """
+    Wechselrichter- und Netzdaten (JTS1_EMS_HEARTBEAT, cmdFunc=96, cmdId=1).
+
+    Enthält 3-Phasen-Messwerte des Wechselrichters, MPPT-String-Daten
+    und die Netzfrequenz. Wird ca. alle 5–10 Sekunden gesendet.
+    """
+    phase_a: PhaseData = field(default_factory=PhaseData)
+    """Phase-A Spannung, Strom und Wirkleistung."""
+    phase_b: PhaseData = field(default_factory=PhaseData)
+    """Phase-B Spannung, Strom und Wirkleistung."""
+    phase_c: PhaseData = field(default_factory=PhaseData)
+    """Phase-C Spannung, Strom und Wirkleistung."""
+    frequency_hz: float = 0.0
+    """Netzfrequenz in Hertz."""
+    mppt_strings: list[MpptStringData] = field(default_factory=list)
+    """Liste der MPPT-PV-Strings (je nach Anlagenaufbau 1–4 Einträge)."""
+    battery_power_w: float = 0.0
+    """Gesamte Batterieleistung in Watt (positiv=Entladen, negativ=Laden)."""
+
+
+@dataclass
 class EnergyStreamData:
     """
     Systemweiter Energiefluss (JTS1_ENERGY_STREAM_REPORT).
@@ -325,6 +371,81 @@ def _decode_bp_sta_report(pdata: bytes) -> list[BatteryPackData]:
     return packs
 
 
+def _decode_pcs_phase(raw: bytes) -> PhaseData:
+    """Dekodiert ein pcsPhase-Protobuf-Objekt (Felder 1=volt, 2=amp, 3=actPwr)."""
+    f = _decode_fields(raw)
+    return PhaseData(
+        volt=_get_float(f, 1),
+        amp=_get_float(f, 2),
+        act_pwr=_get_float(f, 3),
+    )
+
+
+def _decode_ems_heartbeat(pdata: bytes) -> EmsHeartbeatData | None:
+    """
+    Dekodiert eine JTS1_EMS_HEARTBEAT-Nachricht (cmdFunc=96, cmdId=1).
+
+    Feldnummern in JTS1_EMS_HEARTBEAT:
+        1=bpRemainWatth (float, Wh), 12=pcsAPhase, 13=pcsBPhase, 14=pcsCPhase,
+        15=pcsLoadInfo (LoadInfo), 31=mpptHeartBeat (repeated), 59=emsBpPower (float, W)
+
+    Feldnummern in pcsPhase: 1=volt, 2=amp, 3=actPwr
+    Feldnummern in LoadInfo: 1=vol, 2=amp, 3=freq, 4=pwr
+    Feldnummern in mpptHeartBeatEntry.mpptPv: 1=vol, 2=amp, 3=pwr
+
+    Args:
+        pdata: Entschlüsselte innere Nutzdaten des Headers.
+
+    Returns:
+        EmsHeartbeatData-Objekt oder None bei Dekodierungsfehler.
+    """
+    try:
+        f = _decode_fields(pdata)
+
+        # 3-Phasen-Daten (Felder 12, 13, 14)
+        phase_a = _decode_pcs_phase(bytes(f[12][0])) if f.get(12) else PhaseData()
+        phase_b = _decode_pcs_phase(bytes(f[13][0])) if f.get(13) else PhaseData()
+        phase_c = _decode_pcs_phase(bytes(f[14][0])) if f.get(14) else PhaseData()
+
+        # Netzfrequenz aus LoadInfo (Feld 15, darin Feld 3=freq)
+        freq = 0.0
+        if f.get(15):
+            load_f = _decode_fields(bytes(f[15][0]))
+            freq = _get_float(load_f, 3)
+
+        # MPPT-Strings: Feld 31 = repeated mpptHeartBeatEntry
+        # Jeder Entry enthält Feld 1 = repeated mpptPvEntry
+        mppt_strings: list[MpptStringData] = []
+        string_idx = 1
+        for entry_raw in f.get(31, []):
+            if not isinstance(entry_raw, (bytes, bytearray)):
+                continue
+            entry_f = _decode_fields(bytes(entry_raw))
+            for pv_raw in entry_f.get(1, []):
+                if not isinstance(pv_raw, (bytes, bytearray)):
+                    continue
+                pv_f = _decode_fields(bytes(pv_raw))
+                mppt_strings.append(MpptStringData(
+                    index=string_idx,
+                    volt=_get_float(pv_f, 1),
+                    amp=_get_float(pv_f, 2),
+                    power_w=_get_float(pv_f, 3),
+                ))
+                string_idx += 1
+
+        return EmsHeartbeatData(
+            phase_a=phase_a,
+            phase_b=phase_b,
+            phase_c=phase_c,
+            frequency_hz=freq,
+            mppt_strings=mppt_strings,
+            battery_power_w=_get_float(f, 59),  # emsBpPower
+        )
+    except Exception as exc:
+        _LOGGER.warning("Fehler beim Dekodieren von EMS_HEARTBEAT: %s", exc)
+        return None
+
+
 def _decode_energy_stream(pdata: bytes) -> EnergyStreamData | None:
     """
     Dekodiert eine JTS1_ENERGY_STREAM_REPORT-Nachricht (cmdFunc=96, cmdId=33).
@@ -360,7 +481,7 @@ def _decode_energy_stream(pdata: bytes) -> EnergyStreamData | None:
 
 def decode_mqtt_payload(
     raw: bytes,
-) -> tuple[list[BatteryPackData], EnergyStreamData | None]:
+) -> tuple[list[BatteryPackData], EnergyStreamData | None, EmsHeartbeatData | None]:
     """
     Dekodiert eine rohe MQTT-Payload vom Topic /app/device/property/{SN}.
 
@@ -378,9 +499,11 @@ def decode_mqtt_payload(
         Tuple aus:
         - Liste erkannter BatteryPackData-Objekte (kann mehrere Packs enthalten)
         - EnergyStreamData oder None (falls nicht in dieser Nachricht enthalten)
+        - EmsHeartbeatData oder None (falls nicht in dieser Nachricht enthalten)
     """
     battery_packs: list[BatteryPackData] = []
     energy_stream: EnergyStreamData | None = None
+    ems_heartbeat: EmsHeartbeatData | None = None
 
     try:
         # Äußeres Envelope: HeaderMessage = { repeated Header header = 1; }
@@ -388,7 +511,7 @@ def decode_mqtt_payload(
         headers_raw = outer.get(1, [])
     except Exception as exc:
         _LOGGER.error("Fehler beim Parsen des MQTT-Envelopes: %s", exc)
-        return [], None
+        return [], None, None
 
     for raw_header in headers_raw:
         if not isinstance(raw_header, (bytes, bytearray)):
@@ -396,11 +519,11 @@ def decode_mqtt_payload(
         try:
             h = _decode_fields(bytes(raw_header))
 
-            cmd_func = _get_int(h, 8)   # cmd_func
-            cmd_id   = _get_int(h, 9)   # cmd_id
-            enc_type = _get_int(h, 6)   # enc_type
-            seq      = _get_int(h, 14)  # seq (XOR-Schlüssel)
-            pdata    = _get_bytes(h, 1)  # pdata (innere Nutzdaten)
+            cmd_func = _get_int(h, 8)    # cmd_func
+            cmd_id   = _get_int(h, 9)    # cmd_id
+            enc_type = _get_int(h, 6)    # enc_type
+            seq      = _get_int(h, 14)   # seq (XOR-Schlüssel)
+            pdata    = _get_bytes(h, 1)   # pdata (innere Nutzdaten)
 
             if not pdata:
                 continue
@@ -410,7 +533,13 @@ def decode_mqtt_payload(
                 pdata = _xor_decrypt(pdata, seq)
 
             # Dispatch nach Nachrichtentyp
-            if cmd_func == 96 and cmd_id == 7:
+            if cmd_func == 96 and cmd_id == 1:
+                # JTS1_EMS_HEARTBEAT — Wechselrichter / 3-Phasen
+                result = _decode_ems_heartbeat(pdata)
+                if result is not None:
+                    ems_heartbeat = result
+
+            elif cmd_func == 96 and cmd_id == 7:
                 # JTS1_BP_STA_REPORT — Batterie-Pack-Status
                 packs = _decode_bp_sta_report(pdata)
                 battery_packs.extend(packs)
@@ -419,10 +548,8 @@ def decode_mqtt_payload(
                 # JTS1_ENERGY_STREAM_REPORT — Energiefluss
                 energy_stream = _decode_energy_stream(pdata)
 
-            # Weitere Typen (EMS_HEARTBEAT etc.) können hier ergänzt werden
-
         except Exception as exc:
             _LOGGER.debug("Fehler beim Verarbeiten eines Headers: %s", exc)
             continue
 
-    return battery_packs, energy_stream
+    return battery_packs, energy_stream, ems_heartbeat
