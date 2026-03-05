@@ -34,10 +34,12 @@
       "init": {
         "title": "EcoFlow PowerOcean Plus — Optionen",
         "data": {
-          "num_battery_packs": "Anzahl Batterie-Packs"
+          "num_battery_packs": "Anzahl Batterie-Packs",
+          "debug_mode": "Debug-Modus aktivieren"
         },
         "data_description": {
-          "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen."
+          "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen.",
+          "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen."
         }
       }
     }

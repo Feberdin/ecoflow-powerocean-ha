@@ -30,6 +30,8 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    BooleanSelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -41,8 +43,10 @@ from homeassistant.helpers.selector import (
 from .const import (
     API_LOGIN_URL,
     API_TIMEOUT,
+    CONF_DEBUG_MODE,
     CONF_NUM_BATTERY_PACKS,
     CONF_SERIAL_NUMBER,
+    DEFAULT_DEBUG_MODE,
     DEFAULT_NUM_BATTERY_PACKS,
     DOMAIN,
     MANUFACTURER,
@@ -143,6 +147,9 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 self.config_entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS),
             )
         )
+        current_debug_mode = bool(
+            self.config_entry.options.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE)
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
@@ -153,6 +160,9 @@ class EcoFlowOptionsFlow(OptionsFlow):
                         step=1,
                         mode=NumberSelectorMode.BOX,
                     )
+                ),
+                vol.Required(CONF_DEBUG_MODE, default=current_debug_mode): BooleanSelector(
+                    BooleanSelectorConfig()
                 ),
             }),
         )

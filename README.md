@@ -189,6 +189,22 @@ Die kWh-Sensoren sind direkt einsatzbereit. Navigiere zu *Einstellungen → Dash
 
 ### Debug-Logging aktivieren
 
+**Einfach über die UI (empfohlen):**
+
+1. *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren*
+2. Option **„Debug-Modus aktivieren“** einschalten
+3. Speichern (Integration wird neu geladen)
+
+**Diagnose-Datei für Support/Issues exportieren:**
+
+1. *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean*
+2. Menü (⋮) → **„Diagnose herunterladen“**
+3. Die heruntergeladene Datei im GitHub-Issue anhängen
+
+Die Diagnose redigiert sensible Daten (z. B. Passwort/Token/Seriennummer) automatisch.
+
+**Alternativ per YAML:**
+
 ```yaml
 # configuration.yaml
 logger:

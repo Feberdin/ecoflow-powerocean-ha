@@ -34,10 +34,12 @@
       "init": {
         "title": "EcoFlow PowerOcean Plus — Options",
         "data": {
-          "num_battery_packs": "Number of Battery Packs"
+          "num_battery_packs": "Number of Battery Packs",
+          "debug_mode": "Enable Debug Mode"
         },
         "data_description": {
-          "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving."
+          "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving.",
+          "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed."
         }
       }
     }

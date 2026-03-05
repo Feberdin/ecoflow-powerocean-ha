@@ -29,10 +29,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN, PLATFORMS
+from .const import CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE, DOMAIN, PLATFORMS
 from .coordinator import EcoFlowCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _apply_debug_logging(entry: ConfigEntry) -> None:
+    """
+    Aktiviert/deaktiviert Debug-Logging für diese Integration.
+
+    Hinweis:
+    Der Schalter wirkt auf den Integrations-Logger-Namespace
+    `custom_components.ecoflow_powerocean`.
+    """
+    debug_mode = bool(entry.options.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE))
+    integration_logger = logging.getLogger("custom_components.ecoflow_powerocean")
+    integration_logger.setLevel(logging.DEBUG if debug_mode else logging.NOTSET)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -59,6 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ConfigEntryNotReady: Wenn die Verbindung nicht hergestellt werden kann.
     """
     hass.data.setdefault(DOMAIN, {})
+    _apply_debug_logging(entry)
 
     coordinator = EcoFlowCoordinator(hass, entry)
 
@@ -83,8 +97,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     _LOGGER.info(
-        "EcoFlow PowerOcean Plus Integration gestartet (SN: %s)",
+        "EcoFlow PowerOcean Plus Integration gestartet (SN: %s, debug_mode=%s)",
         coordinator.serial_number,
+        bool(entry.options.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE)),
     )
     return True
 

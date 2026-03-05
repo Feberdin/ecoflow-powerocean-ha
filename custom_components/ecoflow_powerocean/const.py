@@ -26,9 +26,15 @@ CONF_NUM_BATTERY_PACKS = "num_battery_packs"
 Sensor-Gruppen in Home Assistant angelegt werden. Muss der tatsächlichen
 Anzahl der physisch installierten EcoFlow Batterie-Packs entsprechen."""
 
+CONF_DEBUG_MODE = "debug_mode"
+"""Aktiviert ausführliches Debug-Logging für diese Integration."""
+
 DEFAULT_NUM_BATTERY_PACKS = 2
 """Standard-Anzahl Batterie-Packs — passend für eine typische 10-kWh-Installation
 mit zwei 5-kWh EcoFlow Packs."""
+
+DEFAULT_DEBUG_MODE = False
+"""Debug-Logging standardmäßig deaktiviert."""
 
 # Hinweis: CONF_EMAIL und CONF_PASSWORD kommen aus homeassistant.const
 
