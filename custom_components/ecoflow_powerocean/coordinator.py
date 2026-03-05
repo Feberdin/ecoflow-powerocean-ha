@@ -82,7 +82,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     Der Coordinator verbindet sich einmalig beim Setup mit dem EcoFlow MQTT-Broker
     und empfängt danach kontinuierlich Statusupdates. Ein periodischer Fallback-Refresh
-    sendet alle 5 Minuten eine GET-Anfrage, falls das Gerät keine spontanen Updates sendet.
+    sendet minütlich eine GET-Anfrage, falls das Gerät keine spontanen Updates sendet.
 
     Attributes:
         serial_number: Seriennummer des PowerOcean Plus Geräts.
@@ -101,7 +101,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{entry.data[CONF_SERIAL_NUMBER]}",
-            update_interval=timedelta(minutes=5),
+            update_interval=timedelta(minutes=1),
         )
 
         self._entry = entry
@@ -377,7 +377,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """
-        Wird periodisch vom DataUpdateCoordinator aufgerufen (Fallback alle 5 Min.).
+        Wird periodisch vom DataUpdateCoordinator aufgerufen (Fallback minütlich).
 
         Sendet eine GET-Anfrage um das Gerät zu einer sofortigen Datenlieferung zu
         bewegen. Die eigentlichen Daten kommen asynchron über den MQTT-Callback

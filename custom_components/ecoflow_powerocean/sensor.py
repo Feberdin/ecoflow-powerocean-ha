@@ -69,6 +69,12 @@ from .proto_decoder import BatteryPackData
 _LOGGER = logging.getLogger(__name__)
 _LAST_SIGN_CORRECTION_SIGNATURE: tuple[Any, ...] | None = None
 
+# Kleine Netzleistungen liegen oft im Messrauschen und sollten nicht
+# per Vorzeichenkorrektur "umkippen".
+GRID_SIGN_DEADBAND_W = 20.0
+# Ein Flip wird nur akzeptiert, wenn die Bilanz erkennbar besser wird.
+MIN_SIGN_FLIP_IMPROVEMENT_W = 20.0
+
 
 # ── Sensor-Beschreibungen ─────────────────────────────────────────────────────
 
@@ -140,16 +146,29 @@ def _normalized_power_components(data: dict[str, Any]) -> tuple[float, float, fl
     battery_raw = float(stream.battery_w)
 
     # 1) Netz-Vorzeichen so wählen, dass die Leistungsbilanz bestmöglich passt.
-    err_grid_keep = abs((solar + battery_raw + grid_raw) - load)
-    err_grid_flip = abs((solar + battery_raw - grid_raw) - load)
-    grid_flipped = err_grid_flip < err_grid_keep
-    grid = -grid_raw if grid_flipped else grid_raw
+    #    Bei sehr kleinen Netzleistungen bleibt das Roh-Vorzeichen unverändert.
+    if abs(grid_raw) <= GRID_SIGN_DEADBAND_W:
+        grid = grid_raw
+        grid_flipped = False
+    else:
+        err_grid_keep = abs((solar + battery_raw + grid_raw) - load)
+        err_grid_flip = abs((solar + battery_raw - grid_raw) - load)
+        grid_improvement = err_grid_keep - err_grid_flip
+        grid_flipped = (
+            err_grid_flip < err_grid_keep
+            and grid_improvement >= MIN_SIGN_FLIP_IMPROVEMENT_W
+        )
+        grid = -grid_raw if grid_flipped else grid_raw
 
     # 2) Batterie-Vorzeichen so wählen, dass die Bilanz bei gewähltem Netz passt.
     battery_expected = load - solar - grid
     err_batt_keep = abs(battery_raw - battery_expected)
     err_batt_flip = abs((-battery_raw) - battery_expected)
-    battery_flipped = err_batt_flip < err_batt_keep
+    batt_improvement = err_batt_keep - err_batt_flip
+    battery_flipped = (
+        err_batt_flip < err_batt_keep
+        and batt_improvement >= MIN_SIGN_FLIP_IMPROVEMENT_W
+    )
     battery = -battery_raw if battery_flipped else battery_raw
 
     # Debug-Hilfe: zeigt nur Fälle, in denen ein Vorzeichen aktiv korrigiert wurde.
@@ -198,6 +217,22 @@ def _load_power_w(data: dict[str, Any]) -> float:
 def _battery_power_w(data: dict[str, Any]) -> float:
     """Batterieleistung in W (normalisiert; +Entladen, -Laden)."""
     return _normalized_power_components(data)[3]
+
+
+def _total_soc(data: dict[str, Any]) -> int | None:
+    """
+    Gesamt-SOC bevorzugt aus ENERGY_STREAM, fallback auf Batterie-Mittelwert.
+    """
+    stream = data.get(DATA_ENERGY_STREAM)
+    if stream is not None:
+        stream_soc = int(getattr(stream, "soc", 0))
+        if 0 <= stream_soc <= 100:
+            return stream_soc
+
+    batteries = data.get(DATA_BATTERIES, {})
+    if not batteries:
+        return None
+    return int(sum(p.soc for p in batteries.values()) / len(batteries))
 
 
 # ── Batterie-Pack-Sensoren ────────────────────────────────────────────────────
@@ -332,8 +367,8 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
-        data_key=DATA_BATTERIES,
-        value_fn=lambda d: int(sum(p.soc for p in d.values()) / len(d)) if d else None,
+        uses_coordinator_data=True,
+        value_fn=lambda d: _total_soc(d),
     ),
     EcoFlowSystemSensorDescription(
         key="bp_remain_wh",
