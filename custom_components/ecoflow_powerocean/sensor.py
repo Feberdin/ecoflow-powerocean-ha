@@ -61,6 +61,7 @@ from .const import (
     DEFAULT_NUM_BATTERY_PACKS,
     DOMAIN,
     MANUFACTURER,
+    MAX_BATTERY_PACKS,
     MODEL,
 )
 from .coordinator import EcoFlowCoordinator
@@ -753,10 +754,23 @@ async def async_setup_entry(
     coordinator: EcoFlowCoordinator = hass.data[DOMAIN][entry.entry_id]
     serial = entry.data[CONF_SERIAL_NUMBER]
     # Options haben Vorrang vor initialen Konfigurationsdaten
-    num_packs: int = entry.options.get(
+    raw_num_packs = entry.options.get(
         CONF_NUM_BATTERY_PACKS,
         entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS),
     )
+    try:
+        num_packs = int(raw_num_packs)
+    except (TypeError, ValueError):
+        _LOGGER.warning(
+            "Ungültiger Wert für %s: %r. Fallback auf Standard: %d",
+            CONF_NUM_BATTERY_PACKS,
+            raw_num_packs,
+            DEFAULT_NUM_BATTERY_PACKS,
+        )
+        num_packs = DEFAULT_NUM_BATTERY_PACKS
+
+    # Defensive Begrenzung, damit keine ungültigen Sensor-Indizes entstehen.
+    num_packs = max(1, min(MAX_BATTERY_PACKS, num_packs))
 
     device_info = DeviceInfo(
         identifiers={(DOMAIN, serial)},

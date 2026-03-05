@@ -139,7 +139,13 @@ class EcoFlowOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Zeigt das Options-Formular und speichert Änderungen."""
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            # NumberSelector liefert je nach UI-Pfad manchmal float (z. B. 2.0).
+            # Für die weitere Verarbeitung benötigen wir einen sicheren int-Wert.
+            normalized_input = dict(user_input)
+            normalized_input[CONF_NUM_BATTERY_PACKS] = int(
+                normalized_input[CONF_NUM_BATTERY_PACKS]
+            )
+            return self.async_create_entry(data=normalized_input)
 
         current_packs = int(
             self.config_entry.options.get(
