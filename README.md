@@ -21,6 +21,20 @@ Inoffizielle Home Assistant Integration für die **EcoFlow PowerOcean Plus** Pho
 
 ---
 
+## Feature-Wünsche & Feedback
+
+Wenn du neue Funktionen vorschlagen möchtest, nutze bitte das Feature-Template:
+
+- [Feature-Wunsch erstellen](https://github.com/Feberdin/ecoflow-powerocean-ha/issues/new?template=feature_request.md&title=%5BFEATURE%5D%20)
+
+Für Fehler bitte das Bug-Template verwenden:
+
+- [Bug melden](https://github.com/Feberdin/ecoflow-powerocean-ha/issues/new?template=bug_report.md&title=%5BBUG%5D%20)
+
+So bleiben Anforderungen und Prioritäten transparent, und wir können Änderungen besser planen.
+
+---
+
 ## Screenshots
 
 ### Geräte- und Sensorübersicht in Home Assistant
