@@ -18,6 +18,7 @@ Inoffizielle Home Assistant Integration für die **EcoFlow PowerOcean Plus** Pho
 - **Energie-Dashboard** — kWh-Zähler direkt integriert, kein YAML nötig
 - **Verbindungsstatus** — MQTT-Verbindung als Sensor für Automationen
 - **Options Flow** — Anzahl Batterie-Packs jederzeit änderbar ohne Neueinrichtung
+- **Gap-Reconciliation** — bei kurzer Internet-Unterbrechung wird die Energielücke beim Reconnect transparent geschätzt
 
 ---
 
@@ -182,6 +183,9 @@ Die kWh-Sensoren sind direkt einsatzbereit. Navigiere zu *Einstellungen → Dash
 **Hinweise:**
 - Zähler starten mit der ersten MQTT-Nachricht — historische Werte werden nicht rückwirkend berechnet
 - Werte bleiben über HA-Neustarts erhalten
+- Bei MQTT-/Internet-Lücken wird beim Reconnect eine Schätzung angewendet
+  (Trapezregel aus letzter Leistung vor Disconnect und erster Leistung nach Reconnect)
+- Sehr lange Unterbrechungen werden aus Sicherheitsgründen nicht automatisch nachgerechnet
 - Kleine Messschwankungen (±5 W) können gleichzeitig minimale Bezugs- und Einspeisungswerte erzeugen — physikalisch normal, Einfluss auf Monatssummen vernachlässigbar
 
 ---
@@ -194,6 +198,7 @@ Die kWh-Sensoren sind direkt einsatzbereit. Navigiere zu *Einstellungen → Dash
 2. HA-Netzwerkverbindung prüfen
 3. Logs prüfen: *Einstellungen → System → Logs → „ecoflow"*
 4. Verbindungsstatus-Sensor prüfen: zeigt er `disconnected`?
+5. Im Verbindungsstatus-Sensor die Attribute `last_gap_*` prüfen (Start/Ende/Dauer der letzten Lücke)
 
 ### Login schlägt fehl
 

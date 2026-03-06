@@ -950,6 +950,7 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
         self._accumulated_kwh: float = 0.0
         self._last_update: datetime | None = None
         self._last_power_w: float = 0.0
+        self._seen_gap_event_id: int = 0
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -968,7 +969,32 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
         power_w = self._get_power_w()
         if self._last_update is not None:
             dt_hours = (now - self._last_update).total_seconds() / 3600.0
-            self._accumulated_kwh += (self._last_power_w / 1000.0) * dt_hours
+            gap_hours = 0.0
+            if self.coordinator.gap_event_id != self._seen_gap_event_id:
+                # Für die erste Aktualisierung nach Reconnect:
+                # - Nicht mit "letzter Leistung über gesamte Offline-Zeit" integrieren.
+                # - Stattdessen Trapez-Schätzung zwischen letzter und erster Leistung.
+                gap_hours = max(self.coordinator.last_gap_seconds, 0.0) / 3600.0
+                self._seen_gap_event_id = self.coordinator.gap_event_id
+
+            active_hours = max(dt_hours - gap_hours, 0.0)
+            self._accumulated_kwh += (self._last_power_w / 1000.0) * active_hours
+
+            if gap_hours > 0.0:
+                estimated_gap_power_w = max(
+                    (self._last_power_w + power_w) / 2.0,
+                    0.0,
+                )
+                gap_kwh = (estimated_gap_power_w / 1000.0) * gap_hours
+                self._accumulated_kwh += gap_kwh
+                _LOGGER.info(
+                    "Gap-Reconciliation %s: +%.4f kWh (Lücke %.1f min, P_alt=%.1f W, P_neu=%.1f W)",
+                    self.entity_description.key,
+                    gap_kwh,
+                    gap_hours * 60.0,
+                    self._last_power_w,
+                    power_w,
+                )
         self._last_update = now
         self._last_power_w = power_w
         super()._handle_coordinator_update()
@@ -1025,6 +1051,20 @@ class EcoFlowConnectionSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntit
     @property
     def available(self) -> bool:
         return True  # Immer verfügbar — zeigt connected/disconnected
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Zeigt zuletzt erkannte Verbindungs-Lücke für transparentes Debugging."""
+        attrs: dict[str, Any] = {}
+        if self.coordinator.last_gap_started_at is not None:
+            attrs["last_gap_started_at"] = self.coordinator.last_gap_started_at.isoformat()
+        if self.coordinator.last_gap_ended_at is not None:
+            attrs["last_gap_ended_at"] = self.coordinator.last_gap_ended_at.isoformat()
+        if self.coordinator.last_gap_seconds > 0:
+            attrs["last_gap_seconds"] = round(self.coordinator.last_gap_seconds, 1)
+            attrs["last_gap_minutes"] = round(self.coordinator.last_gap_seconds / 60.0, 2)
+            attrs["gap_event_id"] = self.coordinator.gap_event_id
+        return attrs
 
 
 # ── Hilfsfunktionen ───────────────────────────────────────────────────────────

@@ -33,7 +33,7 @@ import logging
 import ssl
 import threading
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
@@ -51,6 +51,7 @@ from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     API_CERT_URL,
@@ -64,6 +65,8 @@ from .const import (
     DATA_EMS_HEARTBEAT,
     DATA_ENERGY_STREAM,
     DOMAIN,
+    GAP_RECONCILIATION_MAX_SECONDS,
+    GAP_RECONCILIATION_MIN_SECONDS,
     MQTT_HOST,
     MQTT_KEEPALIVE,
     MQTT_PORT,
@@ -119,6 +122,17 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._mqtt_client: mqtt.Client | None = None
         self._mqtt_connected: bool = False
         self._mqtt_lock = threading.Lock()
+        self._last_message_at: datetime | None = None
+
+        # Gap-Reconciliation:
+        # Erfasst Verbindungsunterbrechungen und stellt Metadaten für die
+        # Energie-Akkumulatoren bereit, damit diese eine kontrollierte
+        # Schätzung für Offline-Phasen anwenden können.
+        self._disconnect_started_at: datetime | None = None
+        self._last_gap_started_at: datetime | None = None
+        self._last_gap_ended_at: datetime | None = None
+        self._last_gap_seconds: float = 0.0
+        self._gap_event_id: int = 0
 
         # Initialer Datensatz
         self.data: dict[str, Any] = {
@@ -292,7 +306,35 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # reason_code: 0 (v1) oder ReasonCode.SUCCESS (v2)
         rc = reason_code if isinstance(reason_code, int) else reason_code.value
         if rc == 0:
+            now = dt_util.utcnow()
             self._mqtt_connected = True
+            if self._disconnect_started_at is not None:
+                gap_seconds = max(
+                    0.0,
+                    (now - self._disconnect_started_at).total_seconds(),
+                )
+                self._disconnect_started_at = None
+
+                if (
+                    GAP_RECONCILIATION_MIN_SECONDS
+                    <= gap_seconds
+                    <= GAP_RECONCILIATION_MAX_SECONDS
+                ):
+                    self._last_gap_seconds = gap_seconds
+                    self._last_gap_started_at = now - timedelta(seconds=gap_seconds)
+                    self._last_gap_ended_at = now
+                    self._gap_event_id += 1
+                    _LOGGER.info(
+                        "MQTT-Lücke erkannt (%.0f s) — Energie-Akkumulatoren wenden Gap-Schätzung an",
+                        gap_seconds,
+                    )
+                elif gap_seconds > GAP_RECONCILIATION_MAX_SECONDS:
+                    _LOGGER.warning(
+                        "MQTT-Lücke zu lang für automatische Schätzung (%.0f s > %.0f s), "
+                        "Gap-Korrektur wird übersprungen",
+                        gap_seconds,
+                        GAP_RECONCILIATION_MAX_SECONDS,
+                    )
             topic = TOPIC_DEVICE_PROPERTY.format(sn=self.serial_number)
             client.subscribe(topic, qos=1)
             _LOGGER.info("MQTT verbunden, abonniere Topic: %s", topic)
@@ -306,6 +348,8 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         paho-mqtt versucht automatisch erneut zu verbinden (loop_start() + reconnect_delay_set).
         """
+        if self._mqtt_connected and self._disconnect_started_at is None:
+            self._disconnect_started_at = dt_util.utcnow()
         self._mqtt_connected = False
         _LOGGER.warning("MQTT-Verbindung getrennt (code=%s), Reconnect läuft…", reason_code)
 
@@ -329,6 +373,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Vorhandene Daten aktualisieren (nicht überschreiben)
         with self._mqtt_lock:
+            self._last_message_at = dt_util.utcnow()
             new_batteries = dict(self.data.get(DATA_BATTERIES, {}))
             for pack in battery_packs:
                 new_batteries[pack.pack_index] = pack
@@ -416,3 +461,24 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self.hass.async_add_executor_job(self._mqtt_client.disconnect)
             self._mqtt_client = None
             self._mqtt_connected = False
+            self._disconnect_started_at = None
+
+    @property
+    def gap_event_id(self) -> int:
+        """Monotoner Zähler: erhöht sich bei jeder relevanten Disconnect-Lücke."""
+        return self._gap_event_id
+
+    @property
+    def last_gap_seconds(self) -> float:
+        """Dauer der zuletzt erkannten MQTT-Lücke in Sekunden."""
+        return self._last_gap_seconds
+
+    @property
+    def last_gap_started_at(self) -> datetime | None:
+        """Startzeitpunkt der zuletzt erkannten MQTT-Lücke (UTC)."""
+        return self._last_gap_started_at
+
+    @property
+    def last_gap_ended_at(self) -> datetime | None:
+        """Endzeitpunkt der zuletzt erkannten MQTT-Lücke (UTC)."""
+        return self._last_gap_ended_at

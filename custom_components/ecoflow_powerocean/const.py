@@ -66,6 +66,13 @@ MQTT_RECONNECT_DELAY = 30
 MQTT_FIRST_DATA_TIMEOUT = 20
 """Maximale Wartezeit in Sekunden auf erste Nutzdaten nach dem Verbindungsaufbau."""
 
+GAP_RECONCILIATION_MIN_SECONDS = 60
+"""Mindestdauer einer MQTT-Unterbrechung, ab der eine Lücken-Korrektur berechnet wird."""
+
+GAP_RECONCILIATION_MAX_SECONDS = 6 * 60 * 60
+"""Maximale Dauer (in Sekunden), die für eine automatische Lücken-Korrektur berücksichtigt wird.
+Längere Unterbrechungen werden aus Sicherheitsgründen nicht automatisch nachgerechnet."""
+
 TOPIC_DEVICE_PROPERTY = "/app/device/property/{sn}"
 """MQTT-Topic, auf dem das Gerät regelmäßig seinen Zustand veröffentlicht."""
 

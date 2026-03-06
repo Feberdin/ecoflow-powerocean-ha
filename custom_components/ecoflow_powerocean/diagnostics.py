@@ -77,6 +77,10 @@ async def async_get_config_entry_diagnostics(
             getattr(coordinator, "_mqtt_user", None)
             and getattr(coordinator, "_mqtt_password", None)
         ),
+        "gap_event_id": getattr(coordinator, "gap_event_id", None),
+        "last_gap_seconds": getattr(coordinator, "last_gap_seconds", None),
+        "last_gap_started_at": _to_jsonable(getattr(coordinator, "last_gap_started_at", None)),
+        "last_gap_ended_at": _to_jsonable(getattr(coordinator, "last_gap_ended_at", None)),
         "data": _to_jsonable(getattr(coordinator, "data", None)),
     }
 
