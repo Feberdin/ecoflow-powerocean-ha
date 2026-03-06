@@ -281,6 +281,30 @@ Issues und Pull Requests bitte über GitHub einreichen.
 
 ---
 
+## Versionslog
+
+> Die Reihenfolge ist chronologisch nach inhaltlicher Entwicklung.  
+> GitHub-Release-Publikationszeiten können davon abweichen.
+
+| Version | Inhalt | Beweggrund |
+|---------|--------|------------|
+| `v0.1.2` | Basis der Sensor-Entitäten stabilisiert (Battery-Sensoren beim Setup vorbereitet) | Zuverlässigere Entitätserstellung beim ersten Laden |
+| `v0.1.3` | MQTT-Auth-Probleme (`Not authorized`) behoben | Verbindungsaufbau zum Broker robuster machen |
+| `v0.1.4` | MQTT Client-ID Format korrigiert | Kompatibilität mit EcoFlow Brokeranforderungen |
+| `v0.2.0` | Breitere Sensorabdeckung aus API/MQTT-Daten | Mehr Messwerte für reale PV-Setups verfügbar machen |
+| `v0.2.1` | Energiefluss-Sensoren korrigiert | Falsche/inkonsistente Livewerte reduzieren |
+| `v0.2.2` | Energie-Dashboard ohne zusätzliche YAML-Konfiguration nutzbar | Einstieg für Nutzer ohne manuelle YAML-Arbeit vereinfachen |
+| `v0.2.3` | Netzfrequenz-Fix | Stabilere Hz-Anzeige trotz lückenhafter Telegramme |
+| `v0.3.0` | Neue Sensoren, Options Flow, Verbindungsstatus | Bedienbarkeit erhöhen und Konfiguration über UI ermöglichen |
+| `v0.3.1` | Vorzeichen-/Leistungslogik verbessert | Abweichungen zwischen App und HA bei Grid/Battery reduzieren |
+| `v0.3.2` | Weitere Korrekturen im Energiefluss | Konsistentere Bilanz bei wechselnden Lastsituationen |
+| `v0.3.3` | Stabilitäts- und Datenqualitätsfixes | Zuverlässigkeit im Dauerbetrieb erhöhen |
+| `v0.3.4` | Debug-Modus + Diagnostics-Export | Support und Fehleranalyse für Nutzer/Issues vereinfachen |
+| `v0.3.5` | Fix für `TypeError` nach Debug-Umschaltung (`num_battery_packs` float/int) | Absturz beim Reconfigure zuverlässig beheben |
+| `v0.3.6` | Gap-Reconciliation bei MQTT/Internet-Lücken (geschätzte Nachführung) + Gap-Metadaten | Energie-Summen nach Verbindungsabbrüchen nachvollziehbar weiterführen |
+
+---
+
 ## Lizenz
 
 MIT — siehe [LICENSE](LICENSE)
