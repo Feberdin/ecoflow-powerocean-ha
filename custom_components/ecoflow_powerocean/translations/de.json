@@ -35,11 +35,23 @@
         "title": "EcoFlow PowerOcean Plus — Optionen",
         "data": {
           "num_battery_packs": "Anzahl Batterie-Packs",
-          "debug_mode": "Debug-Modus aktivieren"
+          "debug_mode": "Debug-Modus aktivieren",
+          "enable_backup_helpers": "Backup Helpers aktivieren",
+          "backup_reserved_soc_percent": "Reservierter Backup-SOC (%)",
+          "power_outage_grid_power_threshold_w": "Grenzwert Netzleistung für Ausfallerkennung (W)",
+          "power_outage_frequency_min_hz": "Mindest-Netzfrequenz für gültiges Netzsignal (Hz)",
+          "backup_runtime_smoothing_minutes": "Glättungsfenster für Laufzeit (Minuten)",
+          "backup_critical_runtime_minutes": "Kritische Restlaufzeit (Minuten)"
         },
         "data_description": {
           "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen.",
-          "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen."
+          "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen.",
+          "enable_backup_helpers": "Aktiviert zusätzliche Hilfs-Sensoren für Backup-Laufzeit und Stromausfall-Erkennung. Die Integration steuert keine Fremdsysteme direkt.",
+          "backup_reserved_soc_percent": "Batteriereserve, die bei Backup-Schätzungen unangetastet bleiben soll. Beispiel: 10 bedeutet, dass die letzten 10 % nicht für die Laufzeitberechnung genutzt werden.",
+          "power_outage_grid_power_threshold_w": "Wenn die absolute Netzleistung länger nahe 0 W bleibt, gilt das als ein Baustein für die Ausfall-Heuristik. Höhere Werte machen die Erkennung toleranter gegenüber Messrauschen.",
+          "power_outage_frequency_min_hz": "Fällt die Netzfrequenz unter diesen Wert oder fehlt sie trotz sonst gültigem Signal, spricht das für einen Netzausfall. Der Wert sollte deutlich unter 50 Hz bleiben.",
+          "backup_runtime_smoothing_minutes": "Über dieses Zeitfenster wird der Hausverbrauch gemittelt, damit einzelne Lastspitzen die Restlaufzeit nicht zu stark verzerren.",
+          "backup_critical_runtime_minutes": "Unterhalb dieser geschätzten Restlaufzeit wird die Backup-Reserve als kritisch markiert. Das eignet sich als Trigger für eigene Automationen."
         }
       }
     }
@@ -202,6 +214,35 @@
           "connected": "Verbunden",
           "disconnected": "Getrennt"
         }
+      },
+      "backup_runtime_estimate_minutes": {
+        "name": "Geschätzte Backup-Laufzeit (Minuten)"
+      },
+      "backup_runtime_estimate_hours": {
+        "name": "Geschätzte Backup-Laufzeit (Stunden)"
+      },
+      "backup_usable_energy_wh": {
+        "name": "Nutzbare Backup-Energie"
+      },
+      "backup_recommended_action": {
+        "name": "Empfohlene Backup-Aktion",
+        "state": {
+          "normal": "Normal",
+          "shed_load": "Last reduzieren",
+          "shutdown_recommended": "Shutdown empfohlen",
+          "unknown": "Unbekannt"
+        }
+      }
+    },
+    "binary_sensor": {
+      "power_outage": {
+        "name": "Stromausfall erkannt"
+      },
+      "backup_reserve_critical": {
+        "name": "Backup-Reserve kritisch"
+      },
+      "backup_active": {
+        "name": "Backup aktiv"
       }
     }
   }

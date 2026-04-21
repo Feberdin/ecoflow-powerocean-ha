@@ -17,6 +17,9 @@ Sensorgruppen:
 
     Verbindungsstatus: connected / disconnected
 
+    Optionale Backup Helpers:
+        Restlaufzeit, nutzbare Reserve, empfohlene Backup-Aktion
+
     (* = standardmäßig deaktiviert)
 """
 
@@ -45,6 +48,7 @@ from homeassistant.const import (
     UnitOfPower,
     UnitOfReactivePower,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -52,7 +56,17 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
+from .backup_helpers import (
+    BACKUP_RECOMMENDED_ACTION_OPTIONS,
+    battery_power_w,
+    grid_power_w,
+    load_power_w,
+    solar_power_w,
+    total_energy_wh,
+    total_soc_percent,
+)
 from .const import (
+    CONF_ENABLE_BACKUP_HELPERS,
     CONF_NUM_BATTERY_PACKS,
     CONF_SERIAL_NUMBER,
     DATA_BATTERIES,
@@ -68,13 +82,6 @@ from .coordinator import EcoFlowCoordinator
 from .proto_decoder import BatteryPackData
 
 _LOGGER = logging.getLogger(__name__)
-_LAST_SIGN_CORRECTION_SIGNATURE: tuple[Any, ...] | None = None
-
-# Kleine Netzleistungen liegen oft im Messrauschen und sollten nicht
-# per Vorzeichenkorrektur "umkippen".
-GRID_SIGN_DEADBAND_W = 20.0
-# Ein Flip wird nur akzeptiert, wenn die Bilanz erkennbar besser wird.
-MIN_SIGN_FLIP_IMPROVEMENT_W = 20.0
 
 
 # ── Sensor-Beschreibungen ─────────────────────────────────────────────────────
@@ -99,141 +106,10 @@ class EcoFlowEnergyAccumulatorDescription(SensorEntityDescription):
     power_fn: Callable[[dict], float] = lambda _: 0.0
 
 
-def _ems_grid_power_w(data: dict[str, Any]) -> float:
-    """Fallback: Netzleistung aus den drei Phasen (EMS_HEARTBEAT)."""
-    ems = data.get(DATA_EMS_HEARTBEAT)
-    if ems is None:
-        return 0.0
-    return float(ems.phase_a.act_pwr + ems.phase_b.act_pwr + ems.phase_c.act_pwr)
-
-
-def _ems_solar_power_w(data: dict[str, Any]) -> float:
-    """Fallback: Solarleistung als Summe aller MPPT-Strings."""
-    ems = data.get(DATA_EMS_HEARTBEAT)
-    if ems is None:
-        return 0.0
-    return float(sum(s.power_w for s in ems.mppt_strings))
-
-
-def _ems_battery_power_w(data: dict[str, Any]) -> float:
-    """Fallback: Batterieleistung aus EMS_HEARTBEAT."""
-    ems = data.get(DATA_EMS_HEARTBEAT)
-    if ems is None:
-        return 0.0
-    return float(ems.battery_power_w)
-
-
-def _normalized_power_components(data: dict[str, Any]) -> tuple[float, float, float, float]:
-    """
-    Liefert normalisierte Leistungswerte als (solar, grid, load, battery).
-
-    Warum:
-    Einige Geräte/Firmwarestände liefern unterschiedliche Vorzeichenkonventionen.
-    ENERGY_STREAM liefert alle vier Kernwerte (Solar, Netz, Last, Batterie), daher
-    können wir Vorzeichen über die physikalische Bilanz robust auflösen:
-        load ~= solar + battery + grid
-    """
-    stream = data.get(DATA_ENERGY_STREAM)
-    if stream is None:
-        solar = _ems_solar_power_w(data)
-        grid = _ems_grid_power_w(data)
-        battery = _ems_battery_power_w(data)
-        load = solar + battery + grid
-        return solar, grid, load, battery
-
-    solar = float(stream.solar_w)
-    load = float(stream.load_w)
-    grid_raw = float(stream.grid_w)
-    battery_raw = float(stream.battery_w)
-
-    # 1) Netz-Vorzeichen so wählen, dass die Leistungsbilanz bestmöglich passt.
-    #    Bei sehr kleinen Netzleistungen bleibt das Roh-Vorzeichen unverändert.
-    if abs(grid_raw) <= GRID_SIGN_DEADBAND_W:
-        grid = grid_raw
-        grid_flipped = False
-    else:
-        err_grid_keep = abs((solar + battery_raw + grid_raw) - load)
-        err_grid_flip = abs((solar + battery_raw - grid_raw) - load)
-        grid_improvement = err_grid_keep - err_grid_flip
-        grid_flipped = (
-            err_grid_flip < err_grid_keep
-            and grid_improvement >= MIN_SIGN_FLIP_IMPROVEMENT_W
-        )
-        grid = -grid_raw if grid_flipped else grid_raw
-
-    # 2) Batterie-Vorzeichen so wählen, dass die Bilanz bei gewähltem Netz passt.
-    battery_expected = load - solar - grid
-    err_batt_keep = abs(battery_raw - battery_expected)
-    err_batt_flip = abs((-battery_raw) - battery_expected)
-    batt_improvement = err_batt_keep - err_batt_flip
-    battery_flipped = (
-        err_batt_flip < err_batt_keep
-        and batt_improvement >= MIN_SIGN_FLIP_IMPROVEMENT_W
-    )
-    battery = -battery_raw if battery_flipped else battery_raw
-
-    # Debug-Hilfe: zeigt nur Fälle, in denen ein Vorzeichen aktiv korrigiert wurde.
-    if grid_flipped or battery_flipped:
-        # Verhindert Log-Spam: nur loggen, wenn sich das Rohwert-Muster geändert hat.
-        signature = (
-            grid_flipped,
-            battery_flipped,
-            round(solar, 1),
-            round(grid_raw, 1),
-            round(battery_raw, 1),
-            round(load, 1),
-        )
-        global _LAST_SIGN_CORRECTION_SIGNATURE
-        if signature != _LAST_SIGN_CORRECTION_SIGNATURE:
-            _LAST_SIGN_CORRECTION_SIGNATURE = signature
-            _LOGGER.debug(
-                "ENERGY_STREAM Vorzeichenkorrektur angewendet (grid_flip=%s, battery_flip=%s, "
-                "solar=%.1fW, grid_raw=%.1fW, battery_raw=%.1fW, load=%.1fW)",
-                grid_flipped,
-                battery_flipped,
-                solar,
-                grid_raw,
-                battery_raw,
-                load,
-            )
-
-    return solar, grid, load, battery
-
-
-def _solar_power_w(data: dict[str, Any]) -> float:
-    """Solarleistung in W (normalisiert)."""
-    return _normalized_power_components(data)[0]
-
-
-def _grid_power_w(data: dict[str, Any]) -> float:
-    """Netzleistung in W (normalisiert; +Bezug, -Einspeisung)."""
-    return _normalized_power_components(data)[1]
-
-
-def _load_power_w(data: dict[str, Any]) -> float:
-    """Hausverbrauch in W (normalisiert)."""
-    return _normalized_power_components(data)[2]
-
-
-def _battery_power_w(data: dict[str, Any]) -> float:
-    """Batterieleistung in W (normalisiert; +Entladen, -Laden)."""
-    return _normalized_power_components(data)[3]
-
-
-def _total_soc(data: dict[str, Any]) -> int | None:
-    """
-    Gesamt-SOC bevorzugt aus ENERGY_STREAM, fallback auf Batterie-Mittelwert.
-    """
-    stream = data.get(DATA_ENERGY_STREAM)
-    if stream is not None:
-        stream_soc = int(getattr(stream, "soc", 0))
-        if 0 <= stream_soc <= 100:
-            return stream_soc
-
-    batteries = data.get(DATA_BATTERIES, {})
-    if not batteries:
-        return None
-    return int(sum(p.soc for p in batteries.values()) / len(batteries))
+@dataclass(frozen=True, kw_only=True)
+class EcoFlowBackupHelperSensorDescription(SensorEntityDescription):
+    """Sensor-Beschreibung für optionale Backup-Helper-Sensoren."""
+    value_fn: Callable[[Any], Any] = lambda _: None
 
 
 # ── Batterie-Pack-Sensoren ────────────────────────────────────────────────────
@@ -330,7 +206,7 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:solar-power",
         uses_coordinator_data=True,
-        value_fn=lambda d: round(_solar_power_w(d), 1),
+        value_fn=lambda d: round(solar_power_w(d), 1),
     ),
     EcoFlowSystemSensorDescription(
         key="grid_power",
@@ -340,7 +216,7 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transmission-tower",
         uses_coordinator_data=True,
-        value_fn=lambda d: round(_grid_power_w(d), 1),
+        value_fn=lambda d: round(grid_power_w(d), 1),
     ),
     EcoFlowSystemSensorDescription(
         key="load_power",
@@ -350,7 +226,7 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:home-lightning-bolt",
         uses_coordinator_data=True,
-        value_fn=lambda d: round(_load_power_w(d), 1),
+        value_fn=lambda d: round(load_power_w(d), 1),
     ),
     EcoFlowSystemSensorDescription(
         key="battery_total_power",
@@ -360,7 +236,7 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-charging",
         uses_coordinator_data=True,
-        value_fn=lambda d: round(_battery_power_w(d), 1),
+        value_fn=lambda d: round(battery_power_w(d), 1),
     ),
     EcoFlowSystemSensorDescription(
         key="total_soc",
@@ -369,7 +245,7 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
         uses_coordinator_data=True,
-        value_fn=lambda d: _total_soc(d),
+        value_fn=lambda d: total_soc_percent(d),
     ),
     EcoFlowSystemSensorDescription(
         key="bp_remain_wh",
@@ -377,8 +253,8 @@ ENERGY_STREAM_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY_STORAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        data_key=DATA_EMS_HEARTBEAT,
-        value_fn=lambda d: round(d.bp_remain_wh, 0) if d.bp_remain_wh > 0 else None,
+        uses_coordinator_data=True,
+        value_fn=lambda d: round(total_energy_wh(d), 0) if total_energy_wh(d) is not None else None,
     ),
     EcoFlowSystemSensorDescription(
         key="bp_alive_count",
@@ -696,7 +572,7 @@ ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
         translation_key="solar_energy",
         icon="mdi:solar-power",
         power_fn=lambda d: max(
-            _solar_power_w(d), 0.0,
+            solar_power_w(d), 0.0,
         ),
     ),
     EcoFlowEnergyAccumulatorDescription(
@@ -704,7 +580,7 @@ ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
         translation_key="grid_import_energy",
         icon="mdi:transmission-tower-import",
         power_fn=lambda d: max(
-            _grid_power_w(d), 0.0,
+            grid_power_w(d), 0.0,
         ),
     ),
     EcoFlowEnergyAccumulatorDescription(
@@ -712,7 +588,7 @@ ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
         translation_key="grid_export_energy",
         icon="mdi:transmission-tower-export",
         power_fn=lambda d: max(
-            -_grid_power_w(d), 0.0,
+            -grid_power_w(d), 0.0,
         ),
     ),
     EcoFlowEnergyAccumulatorDescription(
@@ -720,7 +596,7 @@ ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
         translation_key="battery_discharge_energy",
         icon="mdi:battery-arrow-up",
         power_fn=lambda d: max(
-            _battery_power_w(d), 0.0,
+            battery_power_w(d), 0.0,
         ),
     ),
     EcoFlowEnergyAccumulatorDescription(
@@ -728,8 +604,47 @@ ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
         translation_key="battery_charge_energy",
         icon="mdi:battery-arrow-down",
         power_fn=lambda d: max(
-            -_battery_power_w(d), 0.0,
+            -battery_power_w(d), 0.0,
         ),
+    ),
+)
+
+
+BACKUP_HELPER_SENSOR_TYPES: tuple[EcoFlowBackupHelperSensorDescription, ...] = (
+    EcoFlowBackupHelperSensorDescription(
+        key="backup_runtime_estimate_minutes",
+        translation_key="backup_runtime_estimate_minutes",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-outline",
+        value_fn=lambda evaluation: evaluation.runtime_estimate_minutes,
+    ),
+    EcoFlowBackupHelperSensorDescription(
+        key="backup_runtime_estimate_hours",
+        translation_key="backup_runtime_estimate_hours",
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:clock-outline",
+        value_fn=lambda evaluation: evaluation.runtime_estimate_hours,
+    ),
+    EcoFlowBackupHelperSensorDescription(
+        key="backup_usable_energy_wh",
+        translation_key="backup_usable_energy_wh",
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-medium",
+        value_fn=lambda evaluation: evaluation.usable_energy_wh,
+    ),
+    EcoFlowBackupHelperSensorDescription(
+        key="backup_recommended_action",
+        translation_key="backup_recommended_action",
+        device_class=SensorDeviceClass.ENUM,
+        options=BACKUP_RECOMMENDED_ACTION_OPTIONS,
+        icon="mdi:lightning-bolt-circle",
+        value_fn=lambda evaluation: evaluation.recommended_action,
     ),
 )
 
@@ -807,6 +722,18 @@ async def async_setup_entry(
     entities.append(EcoFlowConnectionSensor(
         coordinator=coordinator, device_info=device_info, serial=serial,
     ))
+
+    # Optionale Backup-Helper-Sensoren
+    if bool(entry.options.get(CONF_ENABLE_BACKUP_HELPERS, False)):
+        for desc in BACKUP_HELPER_SENSOR_TYPES:
+            entities.append(
+                EcoFlowBackupHelperSensor(
+                    coordinator=coordinator,
+                    description=desc,
+                    device_info=device_info,
+                    serial=serial,
+                )
+            )
 
     _LOGGER.debug(
         "Erstelle %d Sensor-Entitäten für %d Batterie-Pack(s) (SN: %s)",
@@ -1064,6 +991,60 @@ class EcoFlowConnectionSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntit
             attrs["last_gap_seconds"] = round(self.coordinator.last_gap_seconds, 1)
             attrs["last_gap_minutes"] = round(self.coordinator.last_gap_seconds / 60.0, 2)
             attrs["gap_event_id"] = self.coordinator.gap_event_id
+        return attrs
+
+
+class EcoFlowBackupHelperSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
+    """
+    Sensoren für den optionalen Backup-Helper-Layer.
+
+    Warum:
+        Diese Entitäten stellen nur Hilfsinformationen bereit. Die eigentliche
+        Aktion — z. B. Lastabwurf oder Shutdown externer Systeme — bleibt bewusst
+        in Home-Assistant-Automationen der Nutzer.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, description, device_info, serial):
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{serial}_{description.key}"
+        self._attr_device_info = device_info
+
+    @property
+    def native_value(self) -> Any:
+        try:
+            return self.entity_description.value_fn(self.coordinator.backup_evaluation)
+        except Exception:
+            return None
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self.coordinator.backup_helpers_enabled
+            and self.coordinator.backup_evaluation.observed_at is not None
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        evaluation = self.coordinator.backup_evaluation
+        attrs: dict[str, Any] = {
+            "backup_helpers_enabled": self.coordinator.backup_helpers_enabled,
+            "outage_reason": evaluation.outage_reason,
+            "has_seen_valid_grid_frequency": evaluation.has_seen_valid_grid_frequency,
+        }
+        if evaluation.observed_at is not None:
+            attrs["evaluated_at"] = evaluation.observed_at.isoformat()
+        if evaluation.smoothed_load_power_w is not None:
+            attrs["smoothed_load_power_w"] = evaluation.smoothed_load_power_w
+        if evaluation.usable_energy_wh is not None:
+            attrs["usable_energy_wh"] = evaluation.usable_energy_wh
+        if evaluation.runtime_estimate_minutes is not None:
+            attrs["runtime_estimate_minutes"] = evaluation.runtime_estimate_minutes
+        if evaluation.runtime_estimate_hours is not None:
+            attrs["runtime_estimate_hours"] = evaluation.runtime_estimate_hours
         return attrs
 
 

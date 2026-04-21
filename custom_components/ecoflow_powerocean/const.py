@@ -29,12 +29,63 @@ Anzahl der physisch installierten EcoFlow Batterie-Packs entsprechen."""
 CONF_DEBUG_MODE = "debug_mode"
 """Aktiviert ausführliches Debug-Logging für diese Integration."""
 
+CONF_ENABLE_BACKUP_HELPERS = "enable_backup_helpers"
+"""Aktiviert optionale Backup-/Stromausfall-Helfer für zusätzliche Sensoren."""
+
+CONF_BACKUP_RESERVED_SOC_PERCENT = "backup_reserved_soc_percent"
+"""SOC-Reserve in Prozent, die für Backup-/Notstrom-Planung unangetastet bleiben soll."""
+
+CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W = "power_outage_grid_power_threshold_w"
+"""Grenzwert für geringe Netzleistung, unterhalb dessen keine normale Netzversorgung angenommen wird."""
+
+CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ = "power_outage_frequency_min_hz"
+"""Mindestfrequenz in Hz, unterhalb der ein Netzausfall als wahrscheinlich gilt."""
+
+CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES = "backup_runtime_smoothing_minutes"
+"""Fenster in Minuten, über das der Hausverbrauch für Backup-Schätzungen geglättet wird."""
+
+CONF_BACKUP_CRITICAL_RUNTIME_MINUTES = "backup_critical_runtime_minutes"
+"""Schwelle in Minuten, unterhalb der die Restlaufzeit als kritisch markiert wird."""
+
 DEFAULT_NUM_BATTERY_PACKS = 2
 """Standard-Anzahl Batterie-Packs — passend für eine typische 10-kWh-Installation
 mit zwei 5-kWh EcoFlow Packs."""
 
 DEFAULT_DEBUG_MODE = False
 """Debug-Logging standardmäßig deaktiviert."""
+
+DEFAULT_ENABLE_BACKUP_HELPERS = False
+"""Backup Helpers sind standardmäßig deaktiviert, damit bestehende Nutzer keine Änderung bemerken."""
+
+DEFAULT_BACKUP_RESERVED_SOC_PERCENT = 10
+"""Standardreserve für die Batterie in Prozent."""
+
+DEFAULT_POWER_OUTAGE_GRID_POWER_THRESHOLD_W = 50
+"""Standard-Grenzwert für geringe Netzleistung in Watt."""
+
+DEFAULT_POWER_OUTAGE_FREQUENCY_MIN_HZ = 1.0
+"""Frequenzen unterhalb dieses Werts gelten für Backup-/Outage-Helfer als ungültig."""
+
+DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES = 10
+"""Standardfenster für die Verbrauchsglättung bei Laufzeitschätzungen."""
+
+DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES = 120
+"""Standardgrenze, ab der die Restlaufzeit als kritisch gilt."""
+
+BACKUP_RESERVED_SOC_PERCENT_MIN = 0
+BACKUP_RESERVED_SOC_PERCENT_MAX = 99
+
+POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MIN = 10
+POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MAX = 1000
+
+POWER_OUTAGE_FREQUENCY_MIN_HZ_MIN = 0.1
+POWER_OUTAGE_FREQUENCY_MIN_HZ_MAX = 49.9
+
+BACKUP_RUNTIME_SMOOTHING_MINUTES_MIN = 1
+BACKUP_RUNTIME_SMOOTHING_MINUTES_MAX = 60
+
+BACKUP_CRITICAL_RUNTIME_MINUTES_MIN = 5
+BACKUP_CRITICAL_RUNTIME_MINUTES_MAX = 24 * 60
 
 # Hinweis: CONF_EMAIL und CONF_PASSWORD kommen aus homeassistant.const
 
@@ -101,7 +152,7 @@ CMD_ID_ENERGY_STREAM = 33
 
 # ── Plattformen ───────────────────────────────────────────────────────────────
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "binary_sensor"]
 """Liste der Home Assistant Plattformen, die diese Integration nutzt."""
 
 # ── Datenschlüssel im Coordinator ─────────────────────────────────────────────

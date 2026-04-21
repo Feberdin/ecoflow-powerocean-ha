@@ -69,6 +69,12 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Liefert redigierte Diagnosedaten für einen Config Entry."""
     coordinator: EcoFlowCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    backup_evaluation = getattr(coordinator, "backup_evaluation", None)
+    backup_evaluation_dict = (
+        backup_evaluation.as_dict()
+        if backup_evaluation is not None and hasattr(backup_evaluation, "as_dict")
+        else None
+    )
 
     coordinator_snapshot: dict[str, Any] = {
         "mqtt_connected": getattr(coordinator, "_mqtt_connected", None),
@@ -77,6 +83,8 @@ async def async_get_config_entry_diagnostics(
             getattr(coordinator, "_mqtt_user", None)
             and getattr(coordinator, "_mqtt_password", None)
         ),
+        "backup_helpers_enabled": getattr(coordinator, "backup_helpers_enabled", None),
+        "backup_evaluation": _to_jsonable(backup_evaluation_dict),
         "gap_event_id": getattr(coordinator, "gap_event_id", None),
         "last_gap_seconds": getattr(coordinator, "last_gap_seconds", None),
         "last_gap_started_at": _to_jsonable(getattr(coordinator, "last_gap_started_at", None)),

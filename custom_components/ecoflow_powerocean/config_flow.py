@@ -43,16 +43,39 @@ from homeassistant.helpers.selector import (
 from .const import (
     API_LOGIN_URL,
     API_TIMEOUT,
+    BACKUP_CRITICAL_RUNTIME_MINUTES_MAX,
+    BACKUP_CRITICAL_RUNTIME_MINUTES_MIN,
+    BACKUP_RESERVED_SOC_PERCENT_MAX,
+    BACKUP_RESERVED_SOC_PERCENT_MIN,
+    BACKUP_RUNTIME_SMOOTHING_MINUTES_MAX,
+    BACKUP_RUNTIME_SMOOTHING_MINUTES_MIN,
+    CONF_BACKUP_CRITICAL_RUNTIME_MINUTES,
+    CONF_BACKUP_RESERVED_SOC_PERCENT,
+    CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     CONF_DEBUG_MODE,
+    CONF_ENABLE_BACKUP_HELPERS,
     CONF_NUM_BATTERY_PACKS,
+    CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
+    CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     CONF_SERIAL_NUMBER,
+    DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES,
+    DEFAULT_BACKUP_RESERVED_SOC_PERCENT,
+    DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     DEFAULT_DEBUG_MODE,
+    DEFAULT_ENABLE_BACKUP_HELPERS,
     DEFAULT_NUM_BATTERY_PACKS,
+    DEFAULT_POWER_OUTAGE_FREQUENCY_MIN_HZ,
+    DEFAULT_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     DOMAIN,
     MANUFACTURER,
     MAX_BATTERY_PACKS,
     MODEL,
+    POWER_OUTAGE_FREQUENCY_MIN_HZ_MAX,
+    POWER_OUTAGE_FREQUENCY_MIN_HZ_MIN,
+    POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MAX,
+    POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MIN,
 )
+from .backup_helpers import normalize_backup_helper_options
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -145,12 +168,18 @@ class EcoFlowOptionsFlow(OptionsFlow):
             normalized_input[CONF_NUM_BATTERY_PACKS] = int(
                 normalized_input[CONF_NUM_BATTERY_PACKS]
             )
+            normalized_input.update(normalize_backup_helper_options(normalized_input))
             return self.async_create_entry(data=normalized_input)
+
+        normalized_options = normalize_backup_helper_options(self.config_entry.options)
 
         current_packs = int(
             self.config_entry.options.get(
                 CONF_NUM_BATTERY_PACKS,
-                self.config_entry.data.get(CONF_NUM_BATTERY_PACKS, DEFAULT_NUM_BATTERY_PACKS),
+                self.config_entry.data.get(
+                    CONF_NUM_BATTERY_PACKS,
+                    DEFAULT_NUM_BATTERY_PACKS,
+                ),
             )
         )
         current_debug_mode = bool(
@@ -169,6 +198,95 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 ),
                 vol.Required(CONF_DEBUG_MODE, default=current_debug_mode): BooleanSelector(
                     BooleanSelectorConfig()
+                ),
+                vol.Required(
+                    CONF_ENABLE_BACKUP_HELPERS,
+                    default=bool(
+                        normalized_options.get(
+                            CONF_ENABLE_BACKUP_HELPERS,
+                            DEFAULT_ENABLE_BACKUP_HELPERS,
+                        )
+                    ),
+                ): BooleanSelector(BooleanSelectorConfig()),
+                vol.Required(
+                    CONF_BACKUP_RESERVED_SOC_PERCENT,
+                    default=int(
+                        normalized_options.get(
+                            CONF_BACKUP_RESERVED_SOC_PERCENT,
+                            DEFAULT_BACKUP_RESERVED_SOC_PERCENT,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=BACKUP_RESERVED_SOC_PERCENT_MIN,
+                        max=BACKUP_RESERVED_SOC_PERCENT_MAX,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
+                    default=int(
+                        normalized_options.get(
+                            CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
+                            DEFAULT_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MIN,
+                        max=POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MAX,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
+                    default=float(
+                        normalized_options.get(
+                            CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
+                            DEFAULT_POWER_OUTAGE_FREQUENCY_MIN_HZ,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=POWER_OUTAGE_FREQUENCY_MIN_HZ_MIN,
+                        max=POWER_OUTAGE_FREQUENCY_MIN_HZ_MAX,
+                        step=0.1,
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES,
+                    default=int(
+                        normalized_options.get(
+                            CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES,
+                            DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=BACKUP_RUNTIME_SMOOTHING_MINUTES_MIN,
+                        max=BACKUP_RUNTIME_SMOOTHING_MINUTES_MAX,
+                        step=1,
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_BACKUP_CRITICAL_RUNTIME_MINUTES,
+                    default=int(
+                        normalized_options.get(
+                            CONF_BACKUP_CRITICAL_RUNTIME_MINUTES,
+                            DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=BACKUP_CRITICAL_RUNTIME_MINUTES_MIN,
+                        max=BACKUP_CRITICAL_RUNTIME_MINUTES_MAX,
+                        step=5,
+                        mode=NumberSelectorMode.BOX,
+                    )
                 ),
             }),
         )

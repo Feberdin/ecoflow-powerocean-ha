@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from collections import deque
 import json
 import logging
 import ssl
@@ -48,11 +49,20 @@ except ImportError:
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .backup_helpers import (
+    BackupEvaluation,
+    BackupSnapshot,
+    backup_helper_config_from_mapping,
+    backup_history_retention_minutes,
+    build_backup_snapshot,
+    evaluate_backup_state,
+    grid_frequency_hz,
+)
 from .const import (
     API_CERT_URL,
     API_LOGIN_URL,
@@ -133,6 +143,29 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_gap_ended_at: datetime | None = None
         self._last_gap_seconds: float = 0.0
         self._gap_event_id: int = 0
+
+        # Backup Helpers:
+        # Der Coordinator speichert nur eine kleine Historie und den letzten
+        # Bewertungszustand. Die eigentliche Ableitungslogik bleibt im Modul
+        # `backup_helpers.py`, damit MQTT-/Login-Logik hier übersichtlich bleibt.
+        combined_options = {**entry.data, **entry.options}
+        self._backup_config = backup_helper_config_from_mapping(combined_options)
+        self._backup_history: deque[BackupSnapshot] = deque()
+        self._backup_evaluation = BackupEvaluation(
+            enabled=False,
+            observed_at=None,
+            usable_energy_wh=None,
+            smoothed_load_power_w=None,
+            runtime_estimate_minutes=None,
+            runtime_estimate_hours=None,
+            backup_reserve_critical=False,
+            power_outage=False,
+            backup_active=False,
+            recommended_action="unknown",
+            outage_reason="backup_helpers_disabled",
+            has_seen_valid_grid_frequency=False,
+        )
+        self._has_seen_valid_grid_frequency = False
 
         # Initialer Datensatz
         self.data: dict[str, Any] = {
@@ -387,11 +420,9 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 DATA_EMS_HEARTBEAT: new_ems,
             }
 
-        # async_set_updated_data ist ein @callback (keine Koroutine) — muss mit
-        # call_soon_threadsafe in den Event-Loop eingeplant werden, nicht mit
-        # run_coroutine_threadsafe (das erwartet eine echte Koroutine).
+        observed_at = dt_util.utcnow()
         self.hass.loop.call_soon_threadsafe(
-            self.async_set_updated_data, new_data
+            self._handle_incoming_data, new_data, observed_at
         )
 
     # ── GET-Anfrage ───────────────────────────────────────────────────────────
@@ -463,6 +494,38 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._mqtt_connected = False
             self._disconnect_started_at = None
 
+    @callback
+    def _handle_incoming_data(self, new_data: dict[str, Any], observed_at: datetime) -> None:
+        """
+        Übernimmt neue MQTT-Daten in den HA-Event-Loop und aktualisiert Backup Helpers.
+
+        Warum:
+            `paho-mqtt` ruft Callbacks in einem Hintergrund-Thread auf. Hier bringen
+            wir die Daten sicher in den Home-Assistant-Loop und rechnen optionale
+            Backup-Ableitungen direkt danach aus.
+        """
+        if grid_frequency_hz(new_data) is not None:
+            self._has_seen_valid_grid_frequency = True
+
+        if self._backup_config.enabled:
+            snapshot = build_backup_snapshot(new_data, observed_at)
+            self._backup_history.append(snapshot)
+
+            retention_minutes = backup_history_retention_minutes(self._backup_config)
+            cutoff = observed_at - timedelta(minutes=retention_minutes)
+            while self._backup_history and self._backup_history[0].observed_at < cutoff:
+                self._backup_history.popleft()
+
+            self._backup_evaluation = evaluate_backup_state(
+                list(self._backup_history),
+                config=self._backup_config,
+                has_seen_valid_grid_frequency=self._has_seen_valid_grid_frequency,
+            )
+        else:
+            self._backup_history.clear()
+
+        self.async_set_updated_data(new_data)
+
     @property
     def gap_event_id(self) -> int:
         """Monotoner Zähler: erhöht sich bei jeder relevanten Disconnect-Lücke."""
@@ -482,3 +545,13 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def last_gap_ended_at(self) -> datetime | None:
         """Endzeitpunkt der zuletzt erkannten MQTT-Lücke (UTC)."""
         return self._last_gap_ended_at
+
+    @property
+    def backup_helpers_enabled(self) -> bool:
+        """Zeigt, ob der optionale Backup-Helper-Layer aktiviert ist."""
+        return self._backup_config.enabled
+
+    @property
+    def backup_evaluation(self) -> BackupEvaluation:
+        """Liefert die letzte berechnete Backup-Bewertung."""
+        return self._backup_evaluation

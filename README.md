@@ -19,6 +19,7 @@ Inoffizielle Home Assistant Integration für die **EcoFlow PowerOcean Plus** Pho
 - **Verbindungsstatus** — MQTT-Verbindung als Sensor für Automationen
 - **Options Flow** — Anzahl Batterie-Packs jederzeit änderbar ohne Neueinrichtung
 - **Gap-Reconciliation** — bei kurzer Internet-Unterbrechung wird die Energielücke beim Reconnect transparent geschätzt
+- **Backup Helpers (optional)** — Laufzeitabschätzung, Stromausfall-Erkennung und Hilfszustände für eigene Automationen
 
 ---
 
@@ -100,6 +101,117 @@ So bleiben Anforderungen und Prioritäten transparent, und wir können Änderung
 *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren*
 
 Die Integration lädt sich danach automatisch neu.
+
+### Backup Helpers aktivieren
+
+Die Backup Helpers sind **optional** und standardmäßig **deaktiviert**.
+Du findest sie ebenfalls unter:
+
+*Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren*
+
+Damit bleibt die Kernintegration für alle bestehenden Nutzer unverändert. Erst wenn du das Feature aktivierst, werden zusätzliche Helper-Entitäten angelegt.
+
+---
+
+## Backup Helpers
+
+Der Backup-Helper-Layer bewertet den aktuellen Backup-Zustand deiner Anlage, ohne direkte Fremdsteuerung in den Core einzubauen.
+
+Wichtig:
+- Die Integration **erkennt und bewertet** Backup-/Outage-Zustände.
+- Die eigentliche Aktion baust du selbst als Home-Assistant-Automation.
+- Es gibt **keine feste Unraid-, Tuya- oder Steckdosen-Logik** im Python-Code.
+
+### Optionen
+
+| Option | Standard | Bedeutung |
+|--------|----------|-----------|
+| `Backup Helpers aktivieren` | `false` | Schaltet die zusätzlichen Helper-Entitäten frei |
+| `Reservierter Backup-SOC (%)` | `10` | Prozentuale Batterie-Reserve, die für Laufzeit-Schätzungen nicht verplant wird |
+| `Grenzwert Netzleistung für Ausfallerkennung (W)` | `50` | Netzleistung innerhalb dieses Bereichs zählt als „nahe null“ |
+| `Mindest-Netzfrequenz für gültiges Netzsignal (Hz)` | `1.0` | Frequenzen darunter oder fehlende Frequenz nach zuvor gültigem Signal gelten als Hinweis auf Netzausfall |
+| `Glättungsfenster für Laufzeit (Minuten)` | `10` | Mittelt den Hausverbrauch, damit Peaks die Laufzeit nicht zu stark verzerren |
+| `Kritische Restlaufzeit (Minuten)` | `120` | Unterhalb dieses Werts wird die Backup-Reserve als kritisch markiert |
+
+### Neue Sensoren
+
+| Sensor | Einheit | Bedeutung |
+|--------|---------|-----------|
+| `Geschätzte Backup-Laufzeit (Minuten)` | min | Restlaufzeit auf Basis geglätteter Last und nutzbarer Energie |
+| `Geschätzte Backup-Laufzeit (Stunden)` | h | Dieselbe Information in Stunden |
+| `Nutzbare Backup-Energie` | Wh | Energie oberhalb der konfigurierten SOC-Reserve |
+| `Empfohlene Backup-Aktion` | Enum | `normal` / `shed_load` / `shutdown_recommended` / `unknown` |
+
+### Neue Binary-Sensoren
+
+| Binary Sensor | Bedeutung |
+|---------------|-----------|
+| `Stromausfall erkannt` | Netzverlust ist nach kombinierter Heuristik wahrscheinlich |
+| `Backup-Reserve kritisch` | Geschätzte Restlaufzeit liegt unter deiner kritischen Schwelle |
+| `Backup aktiv` | Das Haus wird im erkannten Backup-/Inselzustand plausibel lokal versorgt |
+
+### Wie die Stromausfall-Erkennung arbeitet
+
+Die Erkennung ist bewusst **konservativ** und vermeidet Fehlalarme im normalen Nullpunktbetrieb.
+
+Ein Stromausfall wird nur dann als wahrscheinlich gewertet, wenn über einen kurzen stabilen Zeitraum gleichzeitig gilt:
+- Es gab zuvor gültige Netzfrequenz-Samples, und die Frequenz fehlt jetzt oder liegt unter dem konfigurierten Mindestwert
+- Die Netzleistung bleibt nahe `0 W`
+- Es liegt echte Hauslast an
+- PV und/oder Batterie versorgen das Haus plausibel weiter
+
+Wenn die Anlage **nie ein brauchbares Frequenzsignal liefert**, bleibt `Stromausfall erkannt` absichtlich aus. In diesem Fall sind die Laufzeit- und Reserve-Sensoren trotzdem nutzbar, aber die Outage-Erkennung ist bewusst zurückhaltend.
+
+### Automationsbeispiele
+
+Die folgenden Beispiele sind **nur Dokumentation**. Du passt die Ziel-Entitäten an deine eigene Home-Assistant-Umgebung an.
+
+#### 1. Bei Stromausfall Unraid sauber herunterfahren
+
+```yaml
+alias: PowerOcean Backup - Unraid sauber herunterfahren
+mode: single
+trigger:
+  - platform: state
+    entity_id: binary_sensor.mein_powerocean_stromausfall
+    to: "on"
+    for: "00:01:00"
+condition:
+  - condition: state
+    entity_id: binary_sensor.unraid_server_online
+    state: "on"
+action:
+  - service: button.press
+    target:
+      entity_id: button.unraid_graceful_shutdown
+```
+
+#### 2. Bei kritischer Restlaufzeit bestimmte Steckdosen ausschalten
+
+```yaml
+alias: PowerOcean Backup - Nicht kritische Lasten abschalten
+mode: single
+trigger:
+  - platform: state
+    entity_id: binary_sensor.mein_powerocean_backup_reserve_kritisch
+    to: "on"
+    for: "00:02:00"
+condition:
+  - condition: state
+    entity_id: binary_sensor.mein_powerocean_backup_aktiv
+    state: "on"
+action:
+  - service: switch.turn_off
+    target:
+      entity_id:
+        - switch.waschmaschine
+        - switch.trockner
+        - switch.garagensteckdose
+```
+
+Diese Beispiele zeigen den gewünschten Architekturpunkt:
+- **Die Integration liefert Hilfs-Entitäten**
+- **Home Assistant entscheidet per Automation, was konkret passieren soll**
 
 ---
 
@@ -265,6 +377,14 @@ Die EcoFlow Developer API gibt für den PowerOcean Plus den Fehler **1006 „not
 
 Beiträge, Bugreports und Feedback sind herzlich willkommen!
 
+### Lokale Validierung
+
+```bash
+cd /Users/joachim.stiegler/EcoFlow/ha_integration
+python3 -m unittest tests.test_backup_helpers
+python3 -m py_compile custom_components/ecoflow_powerocean/*.py
+```
+
 **Besonders gesucht:**
 - Tester mit anderen PowerOcean Plus Varianten (andere Leistungsklassen, andere Seriennummern)
 - Entwickler für lokalen Modbus TCP Zugriff (Port 502 ist offen)
@@ -302,6 +422,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.3.4` | Debug-Modus + Diagnostics-Export | Support und Fehleranalyse für Nutzer/Issues vereinfachen |
 | `v0.3.5` | Fix für `TypeError` nach Debug-Umschaltung (`num_battery_packs` float/int) | Absturz beim Reconfigure zuverlässig beheben |
 | `v0.3.6` | Gap-Reconciliation bei MQTT/Internet-Lücken (geschätzte Nachführung) + Gap-Metadaten | Energie-Summen nach Verbindungsabbrüchen nachvollziehbar weiterführen |
+| `v0.4.0` | Optionaler Backup-Helper-Layer mit Laufzeitabschätzung, Stromausfall-Heuristik und Binary-Sensoren | Backup-/Outage-Zustände bewerten, ohne Fremdsteuerung hart in den Core zu bauen |
 
 ---
 

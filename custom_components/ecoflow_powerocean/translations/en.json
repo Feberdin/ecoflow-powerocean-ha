@@ -35,11 +35,23 @@
         "title": "EcoFlow PowerOcean Plus — Options",
         "data": {
           "num_battery_packs": "Number of Battery Packs",
-          "debug_mode": "Enable Debug Mode"
+          "debug_mode": "Enable Debug Mode",
+          "enable_backup_helpers": "Enable Backup Helpers",
+          "backup_reserved_soc_percent": "Reserved Backup SOC (%)",
+          "power_outage_grid_power_threshold_w": "Grid power threshold for outage detection (W)",
+          "power_outage_frequency_min_hz": "Minimum grid frequency for valid grid signal (Hz)",
+          "backup_runtime_smoothing_minutes": "Runtime smoothing window (minutes)",
+          "backup_critical_runtime_minutes": "Critical remaining runtime (minutes)"
         },
         "data_description": {
           "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving.",
-          "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed."
+          "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed.",
+          "enable_backup_helpers": "Enables additional helper entities for backup runtime estimation and outage detection. The integration does not directly control third-party systems.",
+          "backup_reserved_soc_percent": "Battery reserve that should remain untouched for backup planning. Example: 10 means the last 10% are excluded from the runtime estimate.",
+          "power_outage_grid_power_threshold_w": "If the absolute grid power remains close to 0 W for a short period, this becomes one building block of the outage heuristic. Higher values make the detection more tolerant to measurement noise.",
+          "power_outage_frequency_min_hz": "If grid frequency drops below this threshold or disappears after previously valid frequency samples, it is treated as evidence of a likely power outage. Keep this value clearly below 50 Hz.",
+          "backup_runtime_smoothing_minutes": "Load power is averaged across this time window so single spikes do not distort the runtime estimate too much.",
+          "backup_critical_runtime_minutes": "Below this estimated runtime the backup reserve is marked as critical. This is a useful trigger for your own automations."
         }
       }
     }
@@ -202,6 +214,35 @@
           "connected": "Connected",
           "disconnected": "Disconnected"
         }
+      },
+      "backup_runtime_estimate_minutes": {
+        "name": "Estimated Backup Runtime (Minutes)"
+      },
+      "backup_runtime_estimate_hours": {
+        "name": "Estimated Backup Runtime (Hours)"
+      },
+      "backup_usable_energy_wh": {
+        "name": "Usable Backup Energy"
+      },
+      "backup_recommended_action": {
+        "name": "Recommended Backup Action",
+        "state": {
+          "normal": "Normal",
+          "shed_load": "Shed Load",
+          "shutdown_recommended": "Shutdown Recommended",
+          "unknown": "Unknown"
+        }
+      }
+    },
+    "binary_sensor": {
+      "power_outage": {
+        "name": "Power Outage Detected"
+      },
+      "backup_reserve_critical": {
+        "name": "Backup Reserve Critical"
+      },
+      "backup_active": {
+        "name": "Backup Active"
       }
     }
   }
