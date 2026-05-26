@@ -21,12 +21,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
@@ -92,6 +92,9 @@ from .daily_report import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigFlowResult
 
 # Validierungsschema für das Einrichtungsformular
 STEP_USER_SCHEMA = vol.Schema(

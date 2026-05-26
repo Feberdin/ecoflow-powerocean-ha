@@ -456,6 +456,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.1` | Optionaler täglicher Sonnenuntergangsbericht mit Einspeise-kWh, Vergütung und Akku-100%-Dauer | Komfortauswertung für Tagesertrag und volle Akku-Zeit direkt per HA-Nachricht |
 | `v0.4.2` | Options-Flow-Fix für Benachrichtigungsziel-Auswahl | Konfigurieren-Dialog in Home Assistant wieder zuverlässig laden |
 | `v0.4.3` | Notify-Ziel im Options Flow auf robustes Textfeld umgestellt | 400-Fehler beim Laden des Konfigurieren-Dialogs vermeiden |
+| `v0.4.4` | Kompatibilitätsfix für `ConfigFlowResult` in Home Assistant 2024.1 | Config-Flow-Import auf älteren HA-Versionen wieder ermöglichen |
 
 ---
 
