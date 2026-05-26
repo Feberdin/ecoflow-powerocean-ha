@@ -23,6 +23,7 @@
       "cannot_connect": "Failed to connect to the EcoFlow API. Please check your internet connection.",
       "invalid_serial": "Invalid serial number. Please check the device label or the EcoFlow App.",
       "already_configured": "This device is already configured.",
+      "missing_notification_target": "Select a notification target or disable the daily sunset report.",
       "unknown": "Unexpected error. Please check the Home Assistant logs."
     },
     "abort": {
@@ -36,6 +37,9 @@
         "data": {
           "num_battery_packs": "Number of Battery Packs",
           "debug_mode": "Enable Debug Mode",
+          "enable_daily_sunset_report": "Enable daily sunset report",
+          "daily_report_notify_target": "Notification target",
+          "daily_report_feed_in_tariff_eur_per_kwh": "Feed-in tariff (€/kWh)",
           "enable_backup_helpers": "Enable Backup Helpers",
           "backup_reserved_soc_percent": "Reserved Backup SOC (%)",
           "power_outage_grid_power_threshold_w": "Grid power threshold for outage detection (W)",
@@ -46,6 +50,9 @@
         "data_description": {
           "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving.",
           "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed.",
+          "enable_daily_sunset_report": "Sends a daily report at sunset with exported energy, calculated value, and battery-full duration.",
+          "daily_report_notify_target": "Home Assistant target that receives the daily report. It must be set when the report is enabled.",
+          "daily_report_feed_in_tariff_eur_per_kwh": "Used to calculate the daily value. Example from the Westnetz billing data: 0.077 €/kWh.",
           "enable_backup_helpers": "Enables additional helper entities for backup runtime estimation and outage detection. The integration does not directly control third-party systems.",
           "backup_reserved_soc_percent": "Battery reserve that should remain untouched for backup planning. Example: 10 means the last 10% are excluded from the runtime estimate.",
           "power_outage_grid_power_threshold_w": "If the absolute grid power remains close to 0 W for a short period, this becomes one building block of the outage heuristic. Higher values make the detection more tolerant to measurement noise.",
@@ -54,6 +61,9 @@
           "backup_critical_runtime_minutes": "Below this estimated runtime the backup reserve is marked as critical. This is a useful trigger for your own automations."
         }
       }
+    },
+    "error": {
+      "missing_notification_target": "Select a notification target or disable the daily sunset report."
     }
   },
   "entity": {

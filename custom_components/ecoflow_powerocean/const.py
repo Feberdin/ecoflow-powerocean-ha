@@ -47,6 +47,17 @@ CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES = "backup_runtime_smoothing_minutes"
 CONF_BACKUP_CRITICAL_RUNTIME_MINUTES = "backup_critical_runtime_minutes"
 """Schwelle in Minuten, unterhalb der die Restlaufzeit als kritisch markiert wird."""
 
+CONF_ENABLE_DAILY_SUNSET_REPORT = "enable_daily_sunset_report"
+"""Aktiviert den optionalen Tagesbericht bei Sonnenuntergang."""
+
+CONF_DAILY_REPORT_NOTIFY_TARGET = "daily_report_notify_target"
+"""Home-Assistant-Target, an das der Tagesbericht gesendet wird."""
+
+CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH = (
+    "daily_report_feed_in_tariff_eur_per_kwh"
+)
+"""Einspeisevergütung in Euro pro kWh für den täglichen Komfortbericht."""
+
 DEFAULT_NUM_BATTERY_PACKS = 2
 """Standard-Anzahl Batterie-Packs — passend für eine typische 10-kWh-Installation
 mit zwei 5-kWh EcoFlow Packs."""
@@ -72,6 +83,15 @@ DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES = 10
 DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES = 120
 """Standardgrenze, ab der die Restlaufzeit als kritisch gilt."""
 
+DEFAULT_ENABLE_DAILY_SUNSET_REPORT = False
+"""Täglicher Sonnenuntergangsbericht ist standardmäßig deaktiviert."""
+
+DEFAULT_DAILY_REPORT_NOTIFY_TARGET = {}
+"""Kein Benachrichtigungsziel voreingestellt."""
+
+DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH = 0.077
+"""Effektiver Default aus Westnetz-Beispiel: 20 kWh ergeben 1,54 Euro."""
+
 BACKUP_RESERVED_SOC_PERCENT_MIN = 0
 BACKUP_RESERVED_SOC_PERCENT_MAX = 99
 
@@ -86,6 +106,10 @@ BACKUP_RUNTIME_SMOOTHING_MINUTES_MAX = 60
 
 BACKUP_CRITICAL_RUNTIME_MINUTES_MIN = 5
 BACKUP_CRITICAL_RUNTIME_MINUTES_MAX = 24 * 60
+
+DAILY_REPORT_FEED_IN_TARIFF_MIN = 0.0
+DAILY_REPORT_FEED_IN_TARIFF_MAX = 1.0
+DAILY_REPORT_FEED_IN_TARIFF_STEP = 0.0001
 
 # Hinweis: CONF_EMAIL und CONF_PASSWORD kommen aus homeassistant.const
 

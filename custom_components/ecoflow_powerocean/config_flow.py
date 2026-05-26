@@ -35,6 +35,8 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    TargetSelector,
+    TargetSelectorConfig,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -49,19 +51,28 @@ from .const import (
     BACKUP_RESERVED_SOC_PERCENT_MIN,
     BACKUP_RUNTIME_SMOOTHING_MINUTES_MAX,
     BACKUP_RUNTIME_SMOOTHING_MINUTES_MIN,
+    CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
+    CONF_DAILY_REPORT_NOTIFY_TARGET,
     CONF_BACKUP_CRITICAL_RUNTIME_MINUTES,
     CONF_BACKUP_RESERVED_SOC_PERCENT,
     CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     CONF_DEBUG_MODE,
+    CONF_ENABLE_DAILY_SUNSET_REPORT,
     CONF_ENABLE_BACKUP_HELPERS,
     CONF_NUM_BATTERY_PACKS,
     CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     CONF_SERIAL_NUMBER,
+    DAILY_REPORT_FEED_IN_TARIFF_MAX,
+    DAILY_REPORT_FEED_IN_TARIFF_MIN,
+    DAILY_REPORT_FEED_IN_TARIFF_STEP,
+    DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
+    DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
     DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES,
     DEFAULT_BACKUP_RESERVED_SOC_PERCENT,
     DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     DEFAULT_DEBUG_MODE,
+    DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
     DEFAULT_ENABLE_BACKUP_HELPERS,
     DEFAULT_NUM_BATTERY_PACKS,
     DEFAULT_POWER_OUTAGE_FREQUENCY_MIN_HZ,
@@ -76,6 +87,10 @@ from .const import (
     POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MIN,
 )
 from .backup_helpers import normalize_backup_helper_options
+from .daily_report import (
+    has_notification_target,
+    normalize_daily_report_options,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -161,6 +176,8 @@ class EcoFlowOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Zeigt das Options-Formular und speichert Änderungen."""
+        errors: dict[str, str] = {}
+
         if user_input is not None:
             # NumberSelector liefert je nach UI-Pfad manchmal float (z. B. 2.0).
             # Für die weitere Verarbeitung benötigen wir einen sicheren int-Wert.
@@ -169,12 +186,27 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 normalized_input[CONF_NUM_BATTERY_PACKS]
             )
             normalized_input.update(normalize_backup_helper_options(normalized_input))
-            return self.async_create_entry(data=normalized_input)
+            normalized_input.update(normalize_daily_report_options(normalized_input))
 
-        normalized_options = normalize_backup_helper_options(self.config_entry.options)
+            if (
+                normalized_input[CONF_ENABLE_DAILY_SUNSET_REPORT]
+                and not has_notification_target(
+                    normalized_input[CONF_DAILY_REPORT_NOTIFY_TARGET]
+                )
+            ):
+                errors[CONF_DAILY_REPORT_NOTIFY_TARGET] = "missing_notification_target"
+
+            if not errors:
+                return self.async_create_entry(data=normalized_input)
+
+        option_defaults = (
+            normalized_input if user_input is not None else self.config_entry.options
+        )
+        normalized_options = normalize_backup_helper_options(option_defaults)
+        normalized_daily_options = normalize_daily_report_options(option_defaults)
 
         current_packs = int(
-            self.config_entry.options.get(
+            option_defaults.get(
                 CONF_NUM_BATTERY_PACKS,
                 self.config_entry.data.get(
                     CONF_NUM_BATTERY_PACKS,
@@ -183,10 +215,11 @@ class EcoFlowOptionsFlow(OptionsFlow):
             )
         )
         current_debug_mode = bool(
-            self.config_entry.options.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE)
+            option_defaults.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE)
         )
         return self.async_show_form(
             step_id="init",
+            errors=errors,
             data_schema=vol.Schema({
                 vol.Required(CONF_NUM_BATTERY_PACKS, default=current_packs): NumberSelector(
                     NumberSelectorConfig(
@@ -198,6 +231,42 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 ),
                 vol.Required(CONF_DEBUG_MODE, default=current_debug_mode): BooleanSelector(
                     BooleanSelectorConfig()
+                ),
+                vol.Required(
+                    CONF_ENABLE_DAILY_SUNSET_REPORT,
+                    default=bool(
+                        normalized_daily_options.get(
+                            CONF_ENABLE_DAILY_SUNSET_REPORT,
+                            DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
+                        )
+                    ),
+                ): BooleanSelector(BooleanSelectorConfig()),
+                vol.Optional(
+                    CONF_DAILY_REPORT_NOTIFY_TARGET,
+                    default=dict(
+                        normalized_daily_options.get(
+                            CONF_DAILY_REPORT_NOTIFY_TARGET,
+                            DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
+                        )
+                    ),
+                ): TargetSelector(
+                    TargetSelectorConfig(entity=[{"domain": "notify"}])
+                ),
+                vol.Required(
+                    CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
+                    default=float(
+                        normalized_daily_options.get(
+                            CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
+                            DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=DAILY_REPORT_FEED_IN_TARIFF_MIN,
+                        max=DAILY_REPORT_FEED_IN_TARIFF_MAX,
+                        step=DAILY_REPORT_FEED_IN_TARIFF_STEP,
+                        mode=NumberSelectorMode.BOX,
+                    )
                 ),
                 vol.Required(
                     CONF_ENABLE_BACKUP_HELPERS,

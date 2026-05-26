@@ -29,8 +29,16 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE, DOMAIN, PLATFORMS
+from .const import (
+    CONF_DEBUG_MODE,
+    CONF_ENABLE_DAILY_SUNSET_REPORT,
+    DEFAULT_DEBUG_MODE,
+    DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
+    DOMAIN,
+    PLATFORMS,
+)
 from .coordinator import EcoFlowCoordinator
+from .daily_report import DAILY_REPORT_DATA_KEY, DailySunsetReportManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,6 +98,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Coordinator im globalen HA-State speichern
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
+    # Optionaler Tagesbericht:
+    # Der Coordinator bleibt unverändert unter hass.data[DOMAIN][entry.entry_id],
+    # weil sensor.py und binary_sensor.py diese Struktur direkt nutzen.
+    if bool(
+        entry.options.get(
+            CONF_ENABLE_DAILY_SUNSET_REPORT,
+            DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
+        )
+    ):
+        manager = DailySunsetReportManager(hass, entry, coordinator)
+        try:
+            await manager.async_setup()
+        except Exception as exc:
+            _LOGGER.warning(
+                "Täglicher Sonnenuntergangsbericht konnte nicht gestartet werden: %s",
+                exc,
+            )
+        else:
+            hass.data.setdefault(DAILY_REPORT_DATA_KEY, {})[entry.entry_id] = manager
+
     # Sensor-Plattform initialisieren
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -122,6 +150,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Plattformen entladen
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    daily_report_manager = hass.data.get(DAILY_REPORT_DATA_KEY, {}).pop(
+        entry.entry_id,
+        None,
+    )
+    if daily_report_manager is not None:
+        await daily_report_manager.async_shutdown()
 
     # MQTT-Verbindung trennen
     if coordinator:

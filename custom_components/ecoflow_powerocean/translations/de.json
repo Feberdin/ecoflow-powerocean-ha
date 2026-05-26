@@ -23,6 +23,7 @@
       "cannot_connect": "Verbindung zur EcoFlow API fehlgeschlagen. Bitte Internetverbindung prüfen.",
       "invalid_serial": "Ungültige Seriennummer. Bitte am Gerät oder in der EcoFlow App nachschlagen.",
       "already_configured": "Dieses Gerät ist bereits konfiguriert.",
+      "missing_notification_target": "Bitte ein Benachrichtigungsziel auswählen oder den täglichen Sonnenuntergangsbericht deaktivieren.",
       "unknown": "Unbekannter Fehler. Bitte die Home Assistant Logs prüfen."
     },
     "abort": {
@@ -36,6 +37,9 @@
         "data": {
           "num_battery_packs": "Anzahl Batterie-Packs",
           "debug_mode": "Debug-Modus aktivieren",
+          "enable_daily_sunset_report": "Täglichen Sonnenuntergangsbericht aktivieren",
+          "daily_report_notify_target": "Benachrichtigungsziel",
+          "daily_report_feed_in_tariff_eur_per_kwh": "Einspeisevergütung (€/kWh)",
           "enable_backup_helpers": "Backup Helpers aktivieren",
           "backup_reserved_soc_percent": "Reservierter Backup-SOC (%)",
           "power_outage_grid_power_threshold_w": "Grenzwert Netzleistung für Ausfallerkennung (W)",
@@ -46,6 +50,9 @@
         "data_description": {
           "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen.",
           "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen.",
+          "enable_daily_sunset_report": "Sendet bei Sonnenuntergang einen Tagesbericht mit Einspeisung, berechneter Vergütung und Akku-100%-Dauer.",
+          "daily_report_notify_target": "Home-Assistant-Ziel, an das der Tagesbericht gesendet wird. Es muss gesetzt sein, wenn der Bericht aktiviert ist.",
+          "daily_report_feed_in_tariff_eur_per_kwh": "Wird zur Berechnung des Tageswerts verwendet. Beispiel aus der Westnetz-Abrechnung: 0,077 €/kWh.",
           "enable_backup_helpers": "Aktiviert zusätzliche Hilfs-Sensoren für Backup-Laufzeit und Stromausfall-Erkennung. Die Integration steuert keine Fremdsysteme direkt.",
           "backup_reserved_soc_percent": "Batteriereserve, die bei Backup-Schätzungen unangetastet bleiben soll. Beispiel: 10 bedeutet, dass die letzten 10 % nicht für die Laufzeitberechnung genutzt werden.",
           "power_outage_grid_power_threshold_w": "Wenn die absolute Netzleistung länger nahe 0 W bleibt, gilt das als ein Baustein für die Ausfall-Heuristik. Höhere Werte machen die Erkennung toleranter gegenüber Messrauschen.",
@@ -54,6 +61,9 @@
           "backup_critical_runtime_minutes": "Unterhalb dieser geschätzten Restlaufzeit wird die Backup-Reserve als kritisch markiert. Das eignet sich als Trigger für eigene Automationen."
         }
       }
+    },
+    "error": {
+      "missing_notification_target": "Bitte ein Benachrichtigungsziel auswählen oder den täglichen Sonnenuntergangsbericht deaktivieren."
     }
   },
   "entity": {

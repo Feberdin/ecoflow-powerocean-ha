@@ -20,6 +20,7 @@ Inoffizielle Home Assistant Integration für die **EcoFlow PowerOcean Plus** Pho
 - **Options Flow** — Anzahl Batterie-Packs jederzeit änderbar ohne Neueinrichtung
 - **Gap-Reconciliation** — bei kurzer Internet-Unterbrechung wird die Energielücke beim Reconnect transparent geschätzt
 - **Backup Helpers (optional)** — Laufzeitabschätzung, Stromausfall-Erkennung und Hilfszustände für eigene Automationen
+- **Täglicher Sonnenuntergangsbericht (optional)** — Einspeise-kWh, geschätzte Vergütung und Akku-100%-Dauer per Home-Assistant-Nachricht
 
 ---
 
@@ -110,6 +111,35 @@ Du findest sie ebenfalls unter:
 *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren*
 
 Damit bleibt die Kernintegration für alle bestehenden Nutzer unverändert. Erst wenn du das Feature aktivierst, werden zusätzliche Helper-Entitäten angelegt.
+
+---
+
+## Täglicher Sonnenuntergangsbericht
+
+Der tägliche Sonnenuntergangsbericht ist **optional** und standardmäßig **deaktiviert**.
+Du aktivierst ihn unter:
+
+*Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren*
+
+Der Bericht sendet bei Sonnenuntergang eine Home-Assistant-Nachricht an das gewählte Ziel.
+Er enthält:
+
+- die an diesem lokalen Kalendertag bis Sonnenuntergang eingespeiste Energie in kWh
+- die daraus berechnete Vergütung in Euro
+- die Dauer, in der der Akku an diesem Tag bei 100 % SOC stand
+
+### Optionen
+
+| Option | Standard | Bedeutung |
+|--------|----------|-----------|
+| `Täglichen Sonnenuntergangsbericht aktivieren` | `false` | Schaltet die tägliche Nachricht frei |
+| `Benachrichtigungsziel` | leer | Home-Assistant-Ziel für `notify.send_message` |
+| `Einspeisevergütung (€/kWh)` | `0,077` | Tarif für `Einspeisung kWh × Tarif` |
+
+Der Default-Tarif `0,077 €/kWh` stammt aus einer Westnetz-Abrechnung:
+17 kWh zu `0,0786 €/kWh` und 3 kWh zu `0,068 €/kWh` ergeben zusammen 20 kWh und 1,54 Euro.
+
+Die Werte sind Monitoring- und Komfortwerte der Integration. Sie sind nicht als rechtsverbindliche Abrechnung gedacht, weil MQTT-/HA-Ausfälle defensiv begrenzt und nicht abrechnungsgenau rekonstruiert werden.
 
 ---
 
@@ -423,6 +453,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.3.5` | Fix für `TypeError` nach Debug-Umschaltung (`num_battery_packs` float/int) | Absturz beim Reconfigure zuverlässig beheben |
 | `v0.3.6` | Gap-Reconciliation bei MQTT/Internet-Lücken (geschätzte Nachführung) + Gap-Metadaten | Energie-Summen nach Verbindungsabbrüchen nachvollziehbar weiterführen |
 | `v0.4.0` | Optionaler Backup-Helper-Layer mit Laufzeitabschätzung, Stromausfall-Heuristik und Binary-Sensoren | Backup-/Outage-Zustände bewerten, ohne Fremdsteuerung hart in den Core zu bauen |
+| `v0.4.1` | Optionaler täglicher Sonnenuntergangsbericht mit Einspeise-kWh, Vergütung und Akku-100%-Dauer | Komfortauswertung für Tagesertrag und volle Akku-Zeit direkt per HA-Nachricht |
 
 ---
 
