@@ -172,8 +172,15 @@ class EcoFlowOptionsFlow(OptionsFlow):
     """Options Flow — erlaubt nachträgliche Konfigurationsänderungen."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialisiert den Options Flow mit dem zugehörigen Config Entry."""
-        self.config_entry = config_entry
+        """Initialisiert den Options Flow mit dem zugehörigen Config Entry.
+
+        Warum eigener Verweis:
+            HA 2024.1 stellt `config_entry` im OptionsFlow noch nicht bereit,
+            neuere HA-Versionen verwalten diese Property intern. Ein direktes
+            Setzen von `self.config_entry` ist dort deprecated und bricht ab
+            HA 2025.12. Der eigene Verweis hält beide Versionen kompatibel.
+        """
+        self._entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -203,7 +210,7 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 return self.async_create_entry(data=normalized_input)
 
         option_defaults = (
-            normalized_input if user_input is not None else self.config_entry.options
+            normalized_input if user_input is not None else self._entry.options
         )
         normalized_options = normalize_backup_helper_options(option_defaults)
         normalized_daily_options = normalize_daily_report_options(option_defaults)
@@ -211,7 +218,7 @@ class EcoFlowOptionsFlow(OptionsFlow):
         current_packs = int(
             option_defaults.get(
                 CONF_NUM_BATTERY_PACKS,
-                self.config_entry.data.get(
+                self._entry.data.get(
                     CONF_NUM_BATTERY_PACKS,
                     DEFAULT_NUM_BATTERY_PACKS,
                 ),
