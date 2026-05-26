@@ -83,6 +83,31 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertEqual(daily_report.normalize_feed_in_tariff(2), 1.0)
         self.assertEqual(daily_report.normalize_feed_in_tariff("0.068"), 0.068)
 
+    def test_notify_entity_is_normalized_to_service_target(self) -> None:
+        normalized = daily_report.normalize_daily_report_options(
+            {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "notify.mobile_app",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+        )
+
+        self.assertEqual(
+            normalized["daily_report_notify_target"],
+            {"entity_id": "notify.mobile_app"},
+        )
+        self.assertTrue(
+            daily_report.has_notification_target(
+                normalized["daily_report_notify_target"]
+            )
+        )
+        self.assertEqual(
+            daily_report.notification_target_entity_id(
+                normalized["daily_report_notify_target"]
+            ),
+            "notify.mobile_app",
+        )
+
     def test_energy_integration_counts_export_power(self) -> None:
         acc = self._accumulator()
         acc.update(self.start, export_power_w=1000.0, soc_percent=80)

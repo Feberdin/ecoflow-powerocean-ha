@@ -32,11 +32,11 @@ from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
     BooleanSelectorConfig,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
-    TargetSelector,
-    TargetSelectorConfig,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -89,6 +89,7 @@ from .const import (
 from .backup_helpers import normalize_backup_helper_options
 from .daily_report import (
     has_notification_target,
+    notification_target_entity_id,
     normalize_daily_report_options,
 )
 
@@ -217,6 +218,17 @@ class EcoFlowOptionsFlow(OptionsFlow):
         current_debug_mode = bool(
             option_defaults.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE)
         )
+        current_notify_entity = notification_target_entity_id(
+            normalized_daily_options.get(
+                CONF_DAILY_REPORT_NOTIFY_TARGET,
+                DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
+            )
+        )
+        notify_target_key = (
+            vol.Optional(CONF_DAILY_REPORT_NOTIFY_TARGET, default=current_notify_entity)
+            if current_notify_entity
+            else vol.Optional(CONF_DAILY_REPORT_NOTIFY_TARGET)
+        )
         return self.async_show_form(
             step_id="init",
             errors=errors,
@@ -241,16 +253,8 @@ class EcoFlowOptionsFlow(OptionsFlow):
                         )
                     ),
                 ): BooleanSelector(BooleanSelectorConfig()),
-                vol.Optional(
-                    CONF_DAILY_REPORT_NOTIFY_TARGET,
-                    default=dict(
-                        normalized_daily_options.get(
-                            CONF_DAILY_REPORT_NOTIFY_TARGET,
-                            DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
-                        )
-                    ),
-                ): TargetSelector(
-                    TargetSelectorConfig(entity=[{"domain": "notify"}])
+                notify_target_key: EntitySelector(
+                    EntitySelectorConfig(domain="notify")
                 ),
                 vol.Required(
                     CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,

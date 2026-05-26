@@ -460,14 +460,25 @@ def normalize_feed_in_tariff(value: Any) -> float:
 
 
 def has_notification_target(target: Any) -> bool:
-    """Prüft, ob ein TargetSelector-Ergebnis mindestens ein Ziel enthält."""
-    if not isinstance(target, Mapping):
-        return False
+    """Prüft, ob eine Notify-Entität oder ein Target-Dict vorhanden ist."""
+    target = _normalize_notify_target(target)
 
     for key in NOTIFY_TARGET_KEYS:
         if _has_value(target.get(key)):
             return True
     return any(_has_value(value) for value in target.values())
+
+
+def notification_target_entity_id(target: Any) -> str | None:
+    """Extrahiert eine einzelne Notify-Entität für den Options-Flow-Default."""
+    target = _normalize_notify_target(target)
+    entity_id = target.get("entity_id")
+    if isinstance(entity_id, str) and entity_id.strip():
+        return entity_id
+    if isinstance(entity_id, list) and entity_id:
+        first = entity_id[0]
+        return first if isinstance(first, str) and first.strip() else None
+    return None
 
 
 def calculate_report_value_eur(
@@ -508,7 +519,13 @@ def build_daily_report_message(
 
 
 def _normalize_notify_target(value: Any) -> dict[str, Any]:
-    """Macht TargetSelector-Werte speicher- und servicefähig."""
+    """Macht Notify-Entity- oder TargetSelector-Werte servicefähig."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        return {"entity_id": stripped} if stripped else {}
+    if isinstance(value, list):
+        entity_ids = [item for item in value if isinstance(item, str) and item.strip()]
+        return {"entity_id": entity_ids} if entity_ids else {}
     if not isinstance(value, Mapping):
         return {}
     return {str(key): val for key, val in value.items() if _has_value(val)}

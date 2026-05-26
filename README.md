@@ -454,6 +454,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.3.6` | Gap-Reconciliation bei MQTT/Internet-Lücken (geschätzte Nachführung) + Gap-Metadaten | Energie-Summen nach Verbindungsabbrüchen nachvollziehbar weiterführen |
 | `v0.4.0` | Optionaler Backup-Helper-Layer mit Laufzeitabschätzung, Stromausfall-Heuristik und Binary-Sensoren | Backup-/Outage-Zustände bewerten, ohne Fremdsteuerung hart in den Core zu bauen |
 | `v0.4.1` | Optionaler täglicher Sonnenuntergangsbericht mit Einspeise-kWh, Vergütung und Akku-100%-Dauer | Komfortauswertung für Tagesertrag und volle Akku-Zeit direkt per HA-Nachricht |
+| `v0.4.2` | Options-Flow-Fix für Benachrichtigungsziel-Auswahl | Konfigurieren-Dialog in Home Assistant wieder zuverlässig laden |
 
 ---
 
