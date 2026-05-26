@@ -82,6 +82,7 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertEqual(daily_report.normalize_feed_in_tariff(-1), 0.0)
         self.assertEqual(daily_report.normalize_feed_in_tariff(2), 1.0)
         self.assertEqual(daily_report.normalize_feed_in_tariff("0.068"), 0.068)
+        self.assertEqual(daily_report.normalize_feed_in_tariff("0,068"), 0.068)
 
     def test_notify_entity_is_normalized_to_service_target(self) -> None:
         normalized = daily_report.normalize_daily_report_options(

@@ -553,6 +553,8 @@ def _has_value(value: Any) -> bool:
 
 def _coerce_float(value: Any, default: float) -> float:
     """Konvertiert beliebige Werte robust zu float."""
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
     try:
         result = float(value)
     except (TypeError, ValueError):

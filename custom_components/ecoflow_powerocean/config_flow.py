@@ -61,9 +61,6 @@ from .const import (
     CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     CONF_SERIAL_NUMBER,
-    DAILY_REPORT_FEED_IN_TARIFF_MAX,
-    DAILY_REPORT_FEED_IN_TARIFF_MIN,
-    DAILY_REPORT_FEED_IN_TARIFF_STEP,
     DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
     DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
     DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES,
@@ -174,6 +171,10 @@ async def _validate_credentials(email: str, password: str) -> tuple[str, str]:
 class EcoFlowOptionsFlow(OptionsFlow):
     """Options Flow — erlaubt nachträgliche Konfigurationsänderungen."""
 
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialisiert den Options Flow mit dem zugehörigen Config Entry."""
+        self.config_entry = config_entry
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -259,19 +260,14 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 ),
                 vol.Required(
                     CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
-                    default=float(
+                    default=str(
                         normalized_daily_options.get(
                             CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
                             DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
                         )
                     ),
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=DAILY_REPORT_FEED_IN_TARIFF_MIN,
-                        max=DAILY_REPORT_FEED_IN_TARIFF_MAX,
-                        step=DAILY_REPORT_FEED_IN_TARIFF_STEP,
-                        mode=NumberSelectorMode.BOX,
-                    )
+                ): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.TEXT)
                 ),
                 vol.Required(
                     CONF_ENABLE_BACKUP_HELPERS,
@@ -383,7 +379,7 @@ class EcoFlowPowerOceanConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> EcoFlowOptionsFlow:
         """Gibt den Options Flow zurück."""
-        return EcoFlowOptionsFlow()
+        return EcoFlowOptionsFlow(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

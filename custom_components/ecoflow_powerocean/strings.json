@@ -52,7 +52,7 @@
           "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen.",
           "enable_daily_sunset_report": "Sendet bei Sonnenuntergang einen Tagesbericht mit Einspeisung, berechneter Vergütung und Akku-100%-Dauer.",
           "daily_report_notify_target": "Entity-ID der Notify-Entität, an die der Tagesbericht gesendet wird. Beispiel: notify.mobile_app_iphone. Sie muss gesetzt sein, wenn der Bericht aktiviert ist.",
-          "daily_report_feed_in_tariff_eur_per_kwh": "Wird zur Berechnung des Tageswerts verwendet. Beispiel aus der Westnetz-Abrechnung: 0,077 €/kWh.",
+          "daily_report_feed_in_tariff_eur_per_kwh": "Wird zur Berechnung des Tageswerts verwendet. Beispiel aus der Westnetz-Abrechnung: 0,077 €/kWh. Eingabe mit Komma oder Punkt ist möglich.",
           "enable_backup_helpers": "Aktiviert zusätzliche Hilfs-Sensoren für Backup-Laufzeit und Stromausfall-Erkennung. Die Integration steuert keine Fremdsysteme direkt.",
           "backup_reserved_soc_percent": "Batteriereserve, die bei Backup-Schätzungen unangetastet bleiben soll. Beispiel: 10 bedeutet, dass die letzten 10 % nicht für die Laufzeitberechnung genutzt werden.",
           "power_outage_grid_power_threshold_w": "Wenn die absolute Netzleistung länger nahe 0 W bleibt, gilt das als ein Baustein für die Ausfall-Heuristik. Höhere Werte machen die Erkennung toleranter gegenüber Messrauschen.",
