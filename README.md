@@ -348,6 +348,31 @@ Die kWh-Sensoren sind direkt einsatzbereit. Navigiere zu *Einstellungen → Dash
 - Bei 2FA: muss in der EcoFlow App deaktiviert sein
 - Sonderzeichen im Passwort werden korrekt behandelt
 
+### HACS zeigt kein Update an oder „Konfigurieren“ lädt nicht
+
+1. In Home Assistant prüfen, welche Version wirklich installiert ist:
+
+   ```bash
+   grep '"version"' /config/custom_components/ecoflow_powerocean/manifest.json
+   ```
+
+2. Wenn dort nicht die aktuelle GitHub-Release-Version steht: HACS öffnen,
+   *EcoFlow PowerOcean* auswählen und über das Menü die Informationen neu laden
+   oder die Integration erneut herunterladen.
+3. Danach Home Assistant vollständig neu starten, nicht nur die Integration neu laden.
+4. Wenn der Konfigurieren-Dialog weiter mit `400: Bad Request` abbricht, diese
+   Logger kurzzeitig aktivieren und den neuen Log-Ausschnitt anhängen:
+
+   ```yaml
+   logger:
+     default: warning
+     logs:
+       homeassistant.config_entries: debug
+       homeassistant.helpers.data_entry_flow: debug
+       custom_components.ecoflow_powerocean: debug
+       custom_components.ecoflow_powerocean.config_flow: debug
+   ```
+
 ### Debug-Logging aktivieren
 
 **Einfach über die UI (empfohlen):**
@@ -458,6 +483,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.3` | Notify-Ziel im Options Flow auf robustes Textfeld umgestellt | 400-Fehler beim Laden des Konfigurieren-Dialogs vermeiden |
 | `v0.4.4` | Kompatibilitätsfix für `ConfigFlowResult` in Home Assistant 2024.1 | Config-Flow-Import auf älteren HA-Versionen wieder ermöglichen |
 | `v0.4.5` | Options Flow initialisiert den zugehörigen Config Entry explizit | Konfigurieren-Dialog auf HA 2024.1 kompatibel starten |
+| `v0.4.6` | HACS-/HA-Troubleshooting für installierte Manifest-Version ergänzt | Sichtbar machen, ob Home Assistant wirklich den aktuellen Code geladen hat |
 
 ---
 
