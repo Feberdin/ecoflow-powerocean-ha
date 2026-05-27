@@ -122,6 +122,30 @@ Erwartung: `form init 11`.
 
 - Fuer installierbare Aenderungen `manifest.json` Version erhoehen.
 - Git taggen und GitHub Release erstellen, sonst erkennt HACS oft kein Update.
+- Nach jedem `git push` zuerst den GitHub-Actions-Run fuer den gepushten Commit
+  pruefen und CI-/Validation-Fehler beheben, bevor eine neue Aufgabe begonnen wird.
+- Repo und Commit nach Push ermitteln:
+
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner
+git rev-parse HEAD
+```
+
+- Passenden Run abwarten:
+
+```bash
+gh run list --commit <SHA> --limit 5 --json databaseId,name,status,conclusion,headSha,url
+gh run watch <RUN_ID> --compact --exit-status
+```
+
+- Bei Fehlern die erste echte Fehlermeldung aus den fehlgeschlagenen Logs lesen:
+
+```bash
+gh run view <RUN_ID> --log-failed
+```
+
+- Fehler lokal beheben, committen, erneut pushen und den Zyklus wiederholen,
+  bis der GitHub-Actions-Run fuer den neuen Commit gruen ist.
 - Nach Release pruefen:
 
 ```bash
@@ -136,6 +160,24 @@ PY
 
 - Bei reinen Projekt-/Arbeitsnotizen keine Integration-Version erhoehen, weil
   sich der installierbare HA-Code nicht aendert.
+
+## Hassfest-/HACS-Regeln fuer dieses Repo
+
+- Vor jedem Push `custom_components/ecoflow_powerocean/manifest.json` als JSON
+  validieren.
+- Manifest-Key-Reihenfolge fuer Hassfest:
+  `domain`, `name`, `after_dependencies`, `codeowners`, `config_flow`,
+  `dependencies`, `documentation`, `integration_type`, `iot_class`,
+  `issue_tracker`, `requirements`, `version`.
+- `custom_components/ecoflow_powerocean/brand/icon.png` muss als quadratische
+  PNG-Datei existieren.
+- Lokal Hassfest ausfuehren:
+
+```bash
+docker run --rm -v "$PWD:/github/workspace" ghcr.io/home-assistant/hassfest
+```
+
+- Keine Secrets, Tokens, privaten Logs oder `.env`-Dateien committen.
 
 ## Validierung
 

@@ -485,6 +485,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.5` | Options Flow initialisiert den zugehörigen Config Entry explizit | Konfigurieren-Dialog auf HA 2024.1 kompatibel starten |
 | `v0.4.6` | HACS-/HA-Troubleshooting für installierte Manifest-Version ergänzt | Sichtbar machen, ob Home Assistant wirklich den aktuellen Code geladen hat |
 | `v0.4.7` | Options Flow nutzt eigenen Config-Entry-Verweis statt HA-Property zu überschreiben | 500-Fehler beim Konfigurieren auf neueren HA-Versionen vermeiden |
+| `v0.4.8` | Manifest-Reihenfolge fuer Hassfest korrigiert und Brand-Icon ergaenzt | HACS-/Hassfest-Validierung stabil gruen halten |
 
 ---
 
