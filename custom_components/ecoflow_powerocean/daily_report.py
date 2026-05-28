@@ -29,7 +29,7 @@ Debug-Hinweis:
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import math
 from typing import Any, Callable, Mapping, TYPE_CHECKING
@@ -87,6 +87,10 @@ class DailyReportState:
     last_export_power_w: float | None = None
     last_soc_percent: float | None = None
     last_sent_date: str | None = None
+    previous_local_date: str | None = None
+    previous_daily_export_kwh: float = 0.0
+    previous_battery_full_seconds: float = 0.0
+    previous_last_update_iso: str | None = None
 
     @classmethod
     def from_mapping(
@@ -112,11 +116,34 @@ class DailyReportState:
             ),
             last_soc_percent=_coerce_optional_float(raw.get("last_soc_percent")),
             last_sent_date=_coerce_optional_str(raw.get("last_sent_date")),
+            previous_local_date=_coerce_optional_str(raw.get("previous_local_date")),
+            previous_daily_export_kwh=_coerce_float(
+                raw.get("previous_daily_export_kwh"),
+                0.0,
+            ),
+            previous_battery_full_seconds=_coerce_float(
+                raw.get("previous_battery_full_seconds"),
+                0.0,
+            ),
+            previous_last_update_iso=_coerce_optional_str(
+                raw.get("previous_last_update_iso")
+            ),
         )
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-kompatible Darstellung für Home-Assistant-Storage."""
         return asdict(self)
+
+    def previous_report_state(self) -> "DailyReportState | None":
+        """Gibt den zuletzt abgeschlossenen Tagesbericht als State-Objekt zurück."""
+        if not self.previous_local_date:
+            return None
+        return DailyReportState(
+            local_date=self.previous_local_date,
+            daily_export_kwh=self.previous_daily_export_kwh,
+            battery_full_seconds=self.previous_battery_full_seconds,
+            last_update_iso=self.previous_last_update_iso,
+        )
 
 
 class DailyReportAccumulator:
@@ -132,10 +159,14 @@ class DailyReportAccumulator:
         self.state = state
 
     def reset_for_date(self, local_date: str) -> None:
-        """Startet einen neuen lokalen Kalendertag und behält `last_sent_date`."""
+        """Startet einen neuen lokalen Kalendertag und archiviert den Vortag."""
         self.state = DailyReportState(
             local_date=local_date,
             last_sent_date=self.state.last_sent_date,
+            previous_local_date=self.state.local_date,
+            previous_daily_export_kwh=self.state.daily_export_kwh,
+            previous_battery_full_seconds=self.state.battery_full_seconds,
+            previous_last_update_iso=self.state.last_update_iso,
         )
 
     @staticmethod
@@ -241,6 +272,7 @@ class DailySunsetReportManager:
         self.accumulator = DailyReportAccumulator(state)
         if self.accumulator.state.local_date != local_date:
             self.accumulator.reset_for_date(local_date)
+            await self._async_save_state(force=True)
 
         remove_update_listener = self.coordinator.async_add_listener(
             self._schedule_update_from_coordinator
@@ -324,12 +356,13 @@ class DailySunsetReportManager:
 
     async def async_send_test_report(self) -> bool:
         """
-        Sendet sofort einen Testbericht, ohne den Tag als gemeldet zu markieren.
+        Sendet den Bericht von gestern, ohne ihn als gemeldet zu markieren.
 
         Warum:
-            Der Sonnenuntergangsbericht laeuft nur einmal taeglich. Ein separater
-            Testpfad macht Notify-Ziel, Service-Aufruf und Datenformat pruefbar,
-            ohne den echten Tagesbericht fuer den Abend zu blockieren.
+            Wenn der Sunset-Event ausfaellt oder das Notify-Ziel falsch war,
+            braucht der Nutzer einen manuellen Wiederholpfad fuer den zuletzt
+            abgeschlossenen Tag. Der echte Sunset-Bericht wird dadurch nicht
+            fuer heute blockiert.
         """
         if not bool(self.options[CONF_ENABLE_DAILY_SUNSET_REPORT]):
             _LOGGER.warning(
@@ -347,17 +380,25 @@ class DailySunsetReportManager:
         local_date = self._local_now().date().isoformat()
         if self.accumulator.state.local_date != local_date:
             self.accumulator.reset_for_date(local_date)
+            await self._async_save_state(force=True)
 
-        await self.async_process_coordinator_update(force_save=False)
+        yesterday = (self._local_now().date() - timedelta(days=1)).isoformat()
+        state = self.accumulator.state.previous_report_state()
+        if state is None or state.local_date != yesterday:
+            _LOGGER.warning(
+                "Tagesbericht-Test kann nicht senden: kein gespeicherter Bericht "
+                "für gestern vorhanden"
+            )
+            return False
 
-        state = self.accumulator.state
-        title = "EcoFlow Tagesbericht (Test)"
+        title = "EcoFlow Tagesbericht (Gestern)"
         message = build_daily_report_message(
             state,
             tariff_eur_per_kwh=float(
                 self.options[CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH]
             ),
             has_enough_data=state.last_update_iso is not None,
+            period_label="Gestern",
         )
 
         try:
@@ -550,15 +591,16 @@ def build_daily_report_message(
     *,
     tariff_eur_per_kwh: float,
     has_enough_data: bool,
+    period_label: str = "Heute",
 ) -> str:
     """Erzeugt den deutsch formatierten Nachrichtentext."""
     if not has_enough_data:
-        return "Heute liegen noch nicht genug Daten für einen Tagesbericht vor."
+        return f"{period_label} liegen noch nicht genug Daten für einen Tagesbericht vor."
 
     tariff = normalize_feed_in_tariff(tariff_eur_per_kwh)
     value_eur = calculate_report_value_eur(state.daily_export_kwh, tariff)
     return (
-        f"Heute eingespeist: {_format_de(state.daily_export_kwh, 2)} kWh\n"
+        f"{period_label} eingespeist: {_format_de(state.daily_export_kwh, 2)} kWh\n"
         f"Vergütung: {_format_de(value_eur, 2)} € "
         f"({_format_de(tariff, 4)} €/kWh)\n"
         f"Akku bei 100 %: {format_duration(state.battery_full_seconds)}"

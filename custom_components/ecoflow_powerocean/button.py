@@ -2,10 +2,9 @@
 Button-Plattform fuer EcoFlow PowerOcean.
 
 Zweck:
-    Stellt einen manuellen Test-Button fuer den optionalen Tagesbericht bereit.
-    Nutzer koennen damit sofort pruefen, ob Notify-Ziel, Service-Aufruf und
-    Nachrichtenformat funktionieren, ohne auf den naechsten Sonnenuntergang zu
-    warten.
+    Stellt einen manuellen Button fuer den optionalen Tagesbericht bereit.
+    Nutzer koennen damit den gespeicherten Bericht von gestern erneut senden,
+    wenn der Sunset-Event oder das Notify-Ziel am Abend nicht funktioniert hat.
 
 Input:
     - Bereits eingerichteter DailySunsetReportManager aus `hass.data`
@@ -13,12 +12,12 @@ Input:
 
 Output:
     - Eine Button-Entitaet `daily_report_test`, wenn der Tagesbericht aktiviert ist
-    - Bei Tastendruck eine Testnachricht ueber den bestehenden Manager
+    - Bei Tastendruck eine Nachricht mit dem gespeicherten Bericht von gestern
 
 Wichtige Invarianten:
     - Keine eigene Tagesbericht-Fachlogik in dieser Datei
     - Kein Veraendern von `hass.data[DOMAIN][entry.entry_id]`; dort bleibt der Coordinator
-    - Ein Testdruck markiert den echten Tagesbericht nicht als gesendet
+    - Ein Tastendruck markiert den echten Tagesbericht nicht als gesendet
 
 Debug-Hinweis:
     - Wenn der Button fehlt, ist der Tagesbericht deaktiviert oder der Manager
@@ -92,7 +91,7 @@ async def async_setup_entry(
 
 
 class EcoFlowDailyReportTestButton(ButtonEntity):
-    """Button, der sofort einen Tagesbericht-Test versendet."""
+    """Button, der den gespeicherten Tagesbericht von gestern versendet."""
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:message-badge-outline"
@@ -125,10 +124,11 @@ class EcoFlowDailyReportTestButton(ButtonEntity):
         )
 
     async def async_press(self) -> None:
-        """Sendet eine Testnachricht ueber den Daily-Report-Manager."""
+        """Sendet den gestrigen Tagesbericht ueber den Daily-Report-Manager."""
         sent = await self._manager.async_send_test_report()
         if not sent:
             raise HomeAssistantError(
-                "EcoFlow Tagesbericht-Test konnte nicht gesendet werden. "
-                "Bitte Benachrichtigungsziel und Integrationslogs pruefen."
+                "EcoFlow Tagesbericht von gestern konnte nicht gesendet werden. "
+                "Bitte Benachrichtigungsziel, gespeicherten Vortag und "
+                "Integrationslogs pruefen."
             )

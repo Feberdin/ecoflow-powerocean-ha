@@ -137,9 +137,9 @@ Er enthält:
 | `Einspeisevergütung (€/kWh)` | `0,077` | Tarif für `Einspeisung kWh × Tarif` |
 
 Wenn der Bericht aktiviert ist, legt die Integration zusätzlich den Button
-**„Tagesbericht testen“** an. Der Button sendet sofort eine Testnachricht mit
-dem aktuellen Tagesstand und markiert den echten Sonnenuntergangsbericht nicht
-als gesendet.
+**„Tagesbericht von gestern senden“** an. Der Button sendet den zuletzt
+gespeicherten Bericht des vorherigen lokalen Kalendertags erneut und markiert
+den echten Sonnenuntergangsbericht nicht als gesendet.
 
 Der Default-Tarif `0,077 €/kWh` stammt aus einer Westnetz-Abrechnung:
 17 kWh zu `0,0786 €/kWh` und 3 kWh zu `0,068 €/kWh` ergeben zusammen 20 kWh und 1,54 Euro.
@@ -492,6 +492,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.7` | Options Flow nutzt eigenen Config-Entry-Verweis statt HA-Property zu überschreiben | 500-Fehler beim Konfigurieren auf neueren HA-Versionen vermeiden |
 | `v0.4.8` | Manifest-Reihenfolge fuer Hassfest korrigiert und Brand-Icon ergaenzt | HACS-/Hassfest-Validierung stabil gruen halten |
 | `v0.4.9` | Notify-Ziel als Entitätsauswahl und Button „Tagesbericht testen“ ergänzt | Tagesbericht sofort prüfbar machen und falsche Notify-Zielwerte vermeiden |
+| `v0.4.10` | Testbutton sendet den gespeicherten Bericht von gestern | Verpasste Sonnenuntergangsberichte am Folgetag manuell erneut senden |
 
 ---
 

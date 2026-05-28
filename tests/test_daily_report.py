@@ -175,6 +175,9 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertEqual(acc.state.local_date, next_day.date().isoformat())
         self.assertEqual(acc.state.daily_export_kwh, 0.0)
         self.assertEqual(acc.state.battery_full_seconds, 0.0)
+        self.assertEqual(acc.state.previous_local_date, self.start.date().isoformat())
+        self.assertAlmostEqual(acc.state.previous_daily_export_kwh, 0.5)
+        self.assertEqual(acc.state.previous_battery_full_seconds, 600.0)
 
     def test_duration_formatting(self) -> None:
         self.assertEqual(daily_report.format_duration(0), "0 min")
@@ -203,8 +206,8 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertIn("Vergütung: 0,77 € (0,0770 €/kWh)", message)
         self.assertIn("Akku bei 100 %: 1 h 05 min", message)
 
-    def test_test_report_sends_without_marking_day_sent(self) -> None:
-        """Testbutton-Pfad darf den echten Tagesbericht nicht blockieren."""
+    def test_test_report_sends_yesterday_without_marking_day_sent(self) -> None:
+        """Testbutton-Pfad sendet gestern und blockiert den echten Bericht nicht."""
 
         class FakeServices:
             def __init__(self) -> None:
@@ -243,11 +246,24 @@ class DailyReportTestCase(unittest.TestCase):
         class FakeCoordinator:
             data = None
 
+        report_now = self.start + timedelta(days=1)
+
+        class FakeManager(daily_report.DailySunsetReportManager):
+            def _local_now(self):
+                return report_now
+
         hass = FakeHass()
-        manager = daily_report.DailySunsetReportManager(
+        manager = FakeManager(
             hass,
             FakeEntry(),
             FakeCoordinator(),
+        )
+        manager.accumulator.state = daily_report.DailyReportState(
+            local_date=(self.start + timedelta(days=1)).date().isoformat(),
+            previous_local_date=self.start.date().isoformat(),
+            previous_daily_export_kwh=10.0,
+            previous_battery_full_seconds=65 * 60,
+            previous_last_update_iso=self.start.isoformat(),
         )
 
         sent = asyncio.run(manager.async_send_test_report())
@@ -259,7 +275,8 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertEqual(call["domain"], "notify")
         self.assertEqual(call["service"], "send_message")
         self.assertEqual(call["target"], {"entity_id": "notify.mobile_app"})
-        self.assertEqual(call["data"]["title"], "EcoFlow Tagesbericht (Test)")
+        self.assertEqual(call["data"]["title"], "EcoFlow Tagesbericht (Gestern)")
+        self.assertIn("Gestern eingespeist: 10,00 kWh", call["data"]["message"])
 
     def test_test_report_requires_notification_target(self) -> None:
         """Ohne Notify-Ziel darf der Testbutton keinen Service-Aufruf starten."""
@@ -290,6 +307,52 @@ class DailyReportTestCase(unittest.TestCase):
             hass,
             FakeEntry(),
             FakeCoordinator(),
+        )
+
+        with self.assertLogs(daily_report._LOGGER.name, level="WARNING"):
+            sent = asyncio.run(manager.async_send_test_report())
+
+        self.assertFalse(sent)
+        self.assertEqual(hass.services.calls, [])
+
+    def test_test_report_requires_yesterday_snapshot(self) -> None:
+        """Ohne gespeicherten Vortag darf kein leerer Bericht gesendet werden."""
+
+        class FakeServices:
+            def __init__(self) -> None:
+                self.calls = []
+
+            async def async_call(self, *args, **kwargs) -> None:
+                self.calls.append((args, kwargs))
+
+        class FakeHass:
+            def __init__(self) -> None:
+                self.services = FakeServices()
+
+        class FakeEntry:
+            options = {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "notify.mobile_app",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+
+        class FakeCoordinator:
+            data = None
+
+        report_now = self.start + timedelta(days=1)
+
+        class FakeManager(daily_report.DailySunsetReportManager):
+            def _local_now(self):
+                return report_now
+
+        hass = FakeHass()
+        manager = FakeManager(
+            hass,
+            FakeEntry(),
+            FakeCoordinator(),
+        )
+        manager.accumulator.state = daily_report.DailyReportState(
+            local_date=(self.start + timedelta(days=1)).date().isoformat(),
         )
 
         with self.assertLogs(daily_report._LOGGER.name, level="WARNING"):

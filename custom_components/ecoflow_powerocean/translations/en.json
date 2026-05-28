@@ -257,7 +257,7 @@
     },
     "button": {
       "daily_report_test": {
-        "name": "Test daily report"
+        "name": "Send yesterday's daily report"
       }
     }
   }

@@ -257,7 +257,7 @@
     },
     "button": {
       "daily_report_test": {
-        "name": "Tagesbericht testen"
+        "name": "Tagesbericht von gestern senden"
       }
     }
   }

@@ -82,9 +82,11 @@ Warum kein TargetSelector:
   Entitaeten direkt in der UI an.
 
 Bei aktiviertem Tagesbericht legt die Integration eine Button-Entitaet
-`daily_report_test` an. Der Button sendet sofort eine Testnachricht und darf
-`last_sent_date` nicht setzen, damit der echte Sonnenuntergangsbericht am selben
-Tag nicht blockiert wird.
+`daily_report_test` an. Der Button sendet den gespeicherten Bericht des
+vorherigen lokalen Kalendertags und darf `last_sent_date` nicht setzen, damit
+der echte Sonnenuntergangsbericht am selben Tag nicht blockiert wird. Dafuer
+archiviert `DailyReportAccumulator.reset_for_date(...)` den abgeschlossenen Tag
+in den `previous_*` Feldern von `DailyReportState`.
 
 ## Options-Flow-Kompatibilitaet
 
