@@ -51,7 +51,7 @@
           "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving.",
           "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed.",
           "enable_daily_sunset_report": "Sends a daily report at sunset with exported energy, calculated value, and battery-full duration.",
-          "daily_report_notify_target": "Entity ID of the notify entity that receives the daily report. Example: notify.mobile_app_iphone. It must be set when the report is enabled.",
+          "daily_report_notify_target": "Notify entity that receives the daily report. It must be set when the report is enabled.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Used to calculate the daily value. Example from the Westnetz billing data: 0.077 €/kWh. Decimal comma or dot are both accepted.",
           "enable_backup_helpers": "Enables additional helper entities for backup runtime estimation and outage detection. The integration does not directly control third-party systems.",
           "backup_reserved_soc_percent": "Battery reserve that should remain untouched for backup planning. Example: 10 means the last 10% are excluded from the runtime estimate.",
@@ -253,6 +253,11 @@
       },
       "backup_active": {
         "name": "Backup Active"
+      }
+    },
+    "button": {
+      "daily_report_test": {
+        "name": "Test daily report"
       }
     }
   }

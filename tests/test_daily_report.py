@@ -24,6 +24,7 @@ Debug-Hinweis:
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import sys
 import types
@@ -201,6 +202,101 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertIn("Heute eingespeist: 10,00 kWh", message)
         self.assertIn("Vergütung: 0,77 € (0,0770 €/kWh)", message)
         self.assertIn("Akku bei 100 %: 1 h 05 min", message)
+
+    def test_test_report_sends_without_marking_day_sent(self) -> None:
+        """Testbutton-Pfad darf den echten Tagesbericht nicht blockieren."""
+
+        class FakeServices:
+            def __init__(self) -> None:
+                self.calls = []
+
+            async def async_call(
+                self,
+                domain,
+                service,
+                data,
+                *,
+                target=None,
+                blocking=False,
+            ) -> None:
+                self.calls.append(
+                    {
+                        "domain": domain,
+                        "service": service,
+                        "data": data,
+                        "target": target,
+                        "blocking": blocking,
+                    }
+                )
+
+        class FakeHass:
+            def __init__(self) -> None:
+                self.services = FakeServices()
+
+        class FakeEntry:
+            options = {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "notify.mobile_app",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+
+        class FakeCoordinator:
+            data = None
+
+        hass = FakeHass()
+        manager = daily_report.DailySunsetReportManager(
+            hass,
+            FakeEntry(),
+            FakeCoordinator(),
+        )
+
+        sent = asyncio.run(manager.async_send_test_report())
+
+        self.assertTrue(sent)
+        self.assertIsNone(manager.accumulator.state.last_sent_date)
+        self.assertEqual(len(hass.services.calls), 1)
+        call = hass.services.calls[0]
+        self.assertEqual(call["domain"], "notify")
+        self.assertEqual(call["service"], "send_message")
+        self.assertEqual(call["target"], {"entity_id": "notify.mobile_app"})
+        self.assertEqual(call["data"]["title"], "EcoFlow Tagesbericht (Test)")
+
+    def test_test_report_requires_notification_target(self) -> None:
+        """Ohne Notify-Ziel darf der Testbutton keinen Service-Aufruf starten."""
+
+        class FakeServices:
+            def __init__(self) -> None:
+                self.calls = []
+
+            async def async_call(self, *args, **kwargs) -> None:
+                self.calls.append((args, kwargs))
+
+        class FakeHass:
+            def __init__(self) -> None:
+                self.services = FakeServices()
+
+        class FakeEntry:
+            options = {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+
+        class FakeCoordinator:
+            data = None
+
+        hass = FakeHass()
+        manager = daily_report.DailySunsetReportManager(
+            hass,
+            FakeEntry(),
+            FakeCoordinator(),
+        )
+
+        with self.assertLogs(daily_report._LOGGER.name, level="WARNING"):
+            sent = asyncio.run(manager.async_send_test_report())
+
+        self.assertFalse(sent)
+        self.assertEqual(hass.services.calls, [])
 
 
 if __name__ == "__main__":

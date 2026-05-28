@@ -176,7 +176,7 @@ CMD_ID_ENERGY_STREAM = 33
 
 # ── Plattformen ───────────────────────────────────────────────────────────────
 
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "button"]
 """Liste der Home Assistant Plattformen, die diese Integration nutzt."""
 
 # ── Datenschlüssel im Coordinator ─────────────────────────────────────────────

@@ -322,6 +322,53 @@ class DailySunsetReportManager:
         self.accumulator.mark_sent()
         await self._async_save_state(force=True)
 
+    async def async_send_test_report(self) -> bool:
+        """
+        Sendet sofort einen Testbericht, ohne den Tag als gemeldet zu markieren.
+
+        Warum:
+            Der Sonnenuntergangsbericht laeuft nur einmal taeglich. Ein separater
+            Testpfad macht Notify-Ziel, Service-Aufruf und Datenformat pruefbar,
+            ohne den echten Tagesbericht fuer den Abend zu blockieren.
+        """
+        if not bool(self.options[CONF_ENABLE_DAILY_SUNSET_REPORT]):
+            _LOGGER.warning(
+                "Tagesbericht-Test wurde angefordert, aber das Feature ist deaktiviert"
+            )
+            return False
+
+        notify_target = self.options[CONF_DAILY_REPORT_NOTIFY_TARGET]
+        if not has_notification_target(notify_target):
+            _LOGGER.warning(
+                "Tagesbericht-Test kann nicht senden: kein Benachrichtigungsziel gesetzt"
+            )
+            return False
+
+        local_date = self._local_now().date().isoformat()
+        if self.accumulator.state.local_date != local_date:
+            self.accumulator.reset_for_date(local_date)
+
+        await self.async_process_coordinator_update(force_save=False)
+
+        state = self.accumulator.state
+        title = "EcoFlow Tagesbericht (Test)"
+        message = build_daily_report_message(
+            state,
+            tariff_eur_per_kwh=float(
+                self.options[CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH]
+            ),
+            has_enough_data=state.last_update_iso is not None,
+        )
+
+        try:
+            await self._async_send_notification(title, message, notify_target)
+        except Exception as exc:
+            _LOGGER.warning("Tagesbericht-Test konnte nicht gesendet werden: %s", exc)
+            return False
+
+        await self._async_save_state(force=True)
+        return True
+
     def _async_track_sunset(self) -> Callable[[], None] | None:
         """
         Registriert den Sunset-Callback.

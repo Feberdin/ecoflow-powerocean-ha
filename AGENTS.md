@@ -50,10 +50,10 @@ Debug-Hinweis:
 - Lange MQTT-/HA-Luecken defensiv begrenzen; keine scheinbar exakten Fantasiewerte.
 - Storage-Schreibzugriffe drosseln und bei Sunset/Unload erzwingen.
 
-## Notify-Ziel im Options Flow
+## Notify-Ziel und Testbutton im Options Flow
 
-Aktuell ist das Feld `Benachrichtigungsziel` bewusst ein Textfeld. Erwartet wird
-eine Notify-Entity-ID, z. B.:
+Das Feld `Benachrichtigungsziel` ist ein `EntitySelector` fuer Notify-Entitaeten.
+Gespeichert und intern normalisiert wird weiterhin eine Notify-Entity-ID, z. B.:
 
 ```text
 notify.mobile_app_beispiel_iphone
@@ -78,7 +78,13 @@ data:
 Warum kein TargetSelector:
 - In den getesteten HA-Versionen verursachten Selector-/Schema-Unterschiede
   wiederholt `400: Bad Request` beim Laden des Options Flow.
-- Ein Textfeld mit Normalisierung auf `{"entity_id": value}` ist robuster.
+- Ein `EntitySelector(domain="notify")` ist stabiler und zeigt die passenden
+  Entitaeten direkt in der UI an.
+
+Bei aktiviertem Tagesbericht legt die Integration eine Button-Entitaet
+`daily_report_test` an. Der Button sendet sofort eine Testnachricht und darf
+`last_sent_date` nicht setzen, damit der echte Sonnenuntergangsbericht am selben
+Tag nicht blockiert wird.
 
 ## Options-Flow-Kompatibilitaet
 

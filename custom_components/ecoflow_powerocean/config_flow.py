@@ -32,6 +32,8 @@ from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
     BooleanSelectorConfig,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -262,8 +264,8 @@ class EcoFlowOptionsFlow(OptionsFlow):
                         )
                     ),
                 ): BooleanSelector(BooleanSelectorConfig()),
-                notify_target_key: TextSelector(
-                    TextSelectorConfig(type=TextSelectorType.TEXT)
+                notify_target_key: EntitySelector(
+                    EntitySelectorConfig(domain="notify")
                 ),
                 vol.Required(
                     CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
