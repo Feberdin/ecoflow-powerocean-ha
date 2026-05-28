@@ -315,8 +315,8 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertFalse(sent)
         self.assertEqual(hass.services.calls, [])
 
-    def test_test_report_requires_yesterday_snapshot(self) -> None:
-        """Ohne gespeicherten Vortag darf kein leerer Bericht gesendet werden."""
+    def test_test_report_sends_notice_without_yesterday_snapshot(self) -> None:
+        """Ohne gespeicherten Vortag wird ein Hinweis statt eines Fehlers gesendet."""
 
         class FakeServices:
             def __init__(self) -> None:
@@ -358,8 +358,16 @@ class DailyReportTestCase(unittest.TestCase):
         with self.assertLogs(daily_report._LOGGER.name, level="WARNING"):
             sent = asyncio.run(manager.async_send_test_report())
 
-        self.assertFalse(sent)
-        self.assertEqual(hass.services.calls, [])
+        self.assertTrue(sent)
+        self.assertEqual(len(hass.services.calls), 1)
+        args, kwargs = hass.services.calls[0]
+        self.assertEqual(args[0], "notify")
+        self.assertEqual(args[1], "send_message")
+        self.assertIn(
+            "noch kein gespeicherter Tagesbericht vorhanden",
+            args[2]["message"],
+        )
+        self.assertEqual(kwargs["target"], {"entity_id": "notify.mobile_app"})
 
 
 if __name__ == "__main__":

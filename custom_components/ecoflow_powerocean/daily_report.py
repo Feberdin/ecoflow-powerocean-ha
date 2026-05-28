@@ -389,7 +389,25 @@ class DailySunsetReportManager:
                 "Tagesbericht-Test kann nicht senden: kein gespeicherter Bericht "
                 "für gestern vorhanden"
             )
-            return False
+            try:
+                await self._async_send_notification(
+                    "EcoFlow Tagesbericht (Gestern)",
+                    (
+                        "Für gestern ist noch kein gespeicherter Tagesbericht "
+                        "vorhanden.\n"
+                        "Der Vortag wird ab dieser Version beim nächsten "
+                        "Tageswechsel gespeichert."
+                    ),
+                    notify_target,
+                )
+            except Exception as exc:
+                _LOGGER.warning(
+                    "Hinweis zum fehlenden gestrigen Tagesbericht konnte nicht "
+                    "gesendet werden: %s",
+                    exc,
+                )
+                return False
+            return True
 
         title = "EcoFlow Tagesbericht (Gestern)"
         message = build_daily_report_message(
