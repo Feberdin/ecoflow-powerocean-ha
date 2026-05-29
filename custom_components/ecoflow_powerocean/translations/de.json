@@ -41,6 +41,8 @@
           "daily_report_notify_target": "Benachrichtigungsziel",
           "daily_report_feed_in_tariff_eur_per_kwh": "Einspeisevergütung (€/kWh)",
           "enable_backup_helpers": "Backup Helpers aktivieren",
+          "enable_backup_outage_notification": "Bei Stromausfall benachrichtigen",
+          "backup_outage_notify_target": "Stromausfall-Benachrichtigungsziel",
           "backup_reserved_soc_percent": "Reservierter Backup-SOC (%)",
           "power_outage_grid_power_threshold_w": "Grenzwert Netzleistung für Ausfallerkennung (W)",
           "power_outage_frequency_min_hz": "Mindest-Netzfrequenz für gültiges Netzsignal (Hz)",
@@ -54,6 +56,8 @@
           "daily_report_notify_target": "Notify-Entität, an die der Tagesbericht gesendet wird. Sie muss gesetzt sein, wenn der Bericht aktiviert ist.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Wird zur Berechnung des Tageswerts verwendet. Beispiel aus der Westnetz-Abrechnung: 0,077 €/kWh. Eingabe mit Komma oder Punkt ist möglich.",
           "enable_backup_helpers": "Aktiviert zusätzliche Hilfs-Sensoren für Backup-Laufzeit und Stromausfall-Erkennung. Die Integration steuert keine Fremdsysteme direkt.",
+          "enable_backup_outage_notification": "Sendet eine Nachricht, wenn die Backup Helpers einen Stromausfall und aktive Batterieversorgung erkennen.",
+          "backup_outage_notify_target": "Notify-Entität, an die die Stromausfall-Benachrichtigung gesendet wird. Sie muss gesetzt sein, wenn die Benachrichtigung aktiviert ist.",
           "backup_reserved_soc_percent": "Batteriereserve, die bei Backup-Schätzungen unangetastet bleiben soll. Beispiel: 10 bedeutet, dass die letzten 10 % nicht für die Laufzeitberechnung genutzt werden.",
           "power_outage_grid_power_threshold_w": "Wenn die absolute Netzleistung länger nahe 0 W bleibt, gilt das als ein Baustein für die Ausfall-Heuristik. Höhere Werte machen die Erkennung toleranter gegenüber Messrauschen.",
           "power_outage_frequency_min_hz": "Fällt die Netzfrequenz unter diesen Wert oder fehlt sie trotz sonst gültigem Signal, spricht das für einen Netzausfall. Der Wert sollte deutlich unter 50 Hz bleiben.",
@@ -63,7 +67,9 @@
       }
     },
     "error": {
-      "missing_notification_target": "Bitte ein Benachrichtigungsziel auswählen oder den täglichen Sonnenuntergangsbericht deaktivieren."
+      "missing_notification_target": "Bitte ein Benachrichtigungsziel auswählen oder den täglichen Sonnenuntergangsbericht deaktivieren.",
+      "missing_backup_outage_notification_target": "Bitte ein Stromausfall-Benachrichtigungsziel auswählen oder die Stromausfall-Benachrichtigung deaktivieren.",
+      "backup_helpers_required": "Bitte Backup Helpers aktivieren, damit die Stromausfall-Benachrichtigung den Backup-Zustand auswerten kann."
     }
   },
   "entity": {
@@ -267,6 +273,9 @@
     "button": {
       "daily_report_test": {
         "name": "Tagesbericht von gestern senden"
+      },
+      "backup_outage_notification_test": {
+        "name": "Stromausfall-Benachrichtigung testen"
       }
     }
   }

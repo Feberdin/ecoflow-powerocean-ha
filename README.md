@@ -183,6 +183,8 @@ Wichtig:
 | Option | Standard | Bedeutung |
 |--------|----------|-----------|
 | `Backup Helpers aktivieren` | `false` | Schaltet die zusätzlichen Helper-Entitäten frei |
+| `Bei Stromausfall benachrichtigen` | `false` | Sendet eine Nachricht, wenn Stromausfall und aktive Batterieversorgung erkannt werden |
+| `Stromausfall-Benachrichtigungsziel` | leer | Notify-Entität für die Stromausfall-Nachricht |
 | `Reservierter Backup-SOC (%)` | `10` | Prozentuale Batterie-Reserve, die für Laufzeit-Schätzungen nicht verplant wird |
 | `Grenzwert Netzleistung für Ausfallerkennung (W)` | `50` | Netzleistung innerhalb dieses Bereichs zählt als „nahe null“ |
 | `Mindest-Netzfrequenz für gültiges Netzsignal (Hz)` | `1.0` | Frequenzen darunter oder fehlende Frequenz nach zuvor gültigem Signal gelten als Hinweis auf Netzausfall |
@@ -205,6 +207,23 @@ Wichtig:
 | `Stromausfall erkannt` | Netzverlust ist nach kombinierter Heuristik wahrscheinlich |
 | `Backup-Reserve kritisch` | Geschätzte Restlaufzeit liegt unter deiner kritischen Schwelle |
 | `Backup aktiv` | Das Haus wird im erkannten Backup-/Inselzustand plausibel lokal versorgt |
+
+### Stromausfall-Benachrichtigung
+
+Wenn `Bei Stromausfall benachrichtigen` aktiviert ist, sendet die Integration
+eine Home-Assistant-Notify-Nachricht, sobald gleichzeitig gilt:
+
+- `Stromausfall erkannt` ist aktiv
+- `Backup aktiv` ist aktiv
+- ein `Stromausfall-Benachrichtigungsziel` ist gesetzt
+
+Die Nachricht wird nur einmal pro zusammenhängender Ausfallphase gesendet.
+Sobald die Backup Helpers wieder Normalzustand erkennen, wird die
+Benachrichtigung für den nächsten Ausfall erneut scharf geschaltet.
+
+Zusätzlich wird der Button **„Stromausfall-Benachrichtigung testen“** angelegt.
+Er sendet eine Testnachricht an dasselbe Ziel und verändert den Ausfall-Merker
+nicht.
 
 ### Wie die Stromausfall-Erkennung arbeitet
 
@@ -516,6 +535,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.10` | Testbutton sendet den gespeicherten Bericht von gestern | Verpasste Sonnenuntergangsberichte am Folgetag manuell erneut senden |
 | `v0.4.11` | Testbutton sendet bei fehlendem Vortag einen Hinweis statt HA-Fehler | Erste Nutzung nach Update verständlich machen |
 | `v0.4.12` | Sunset-Callback fuer Home-Assistant-Signatur korrigiert, Catch-up und Statistik-Sensoren ergänzt | Täglichen Bericht zuverlässig auslösen und Langzeitwerte sichtbar machen |
+| `v0.4.13` | Optionale Stromausfall-Benachrichtigung inklusive Testbutton ergänzt | Handy-Nachricht senden, wenn Backup Helpers Stromausfall und Batterieversorgung erkennen |
 
 ---
 

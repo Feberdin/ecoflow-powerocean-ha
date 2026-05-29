@@ -393,7 +393,12 @@ class DailySunsetReportManager:
         )
 
         try:
-            await self._async_send_notification(title, message, notify_target)
+            await async_send_notification_message(
+                self.hass,
+                title,
+                message,
+                notify_target,
+            )
         except Exception as exc:
             _LOGGER.warning("Tagesbericht konnte nicht gesendet werden: %s", exc)
             return
@@ -437,7 +442,8 @@ class DailySunsetReportManager:
                 "für gestern vorhanden"
             )
             try:
-                await self._async_send_notification(
+                await async_send_notification_message(
+                    self.hass,
                     "EcoFlow Tagesbericht (Gestern)",
                     (
                         "Für gestern ist noch kein gespeicherter Tagesbericht "
@@ -467,7 +473,12 @@ class DailySunsetReportManager:
         )
 
         try:
-            await self._async_send_notification(title, message, notify_target)
+            await async_send_notification_message(
+                self.hass,
+                title,
+                message,
+                notify_target,
+            )
         except Exception as exc:
             _LOGGER.warning("Tagesbericht-Test konnte nicht gesendet werden: %s", exc)
             return False
@@ -579,39 +590,6 @@ class DailySunsetReportManager:
         local_next_setting = _as_local_time(next_setting)
         return local_next_setting.date() > self._local_now().date()
 
-    async def _async_send_notification(
-        self,
-        title: str,
-        message: str,
-        notify_target: Mapping[str, Any],
-    ) -> None:
-        """Sendet bevorzugt per `notify.send_message` mit Target-Block."""
-        service_data = {
-            "title": title,
-            "message": message,
-        }
-        try:
-            await self.hass.services.async_call(
-                "notify",
-                "send_message",
-                service_data,
-                target=dict(notify_target),
-                blocking=False,
-            )
-            return
-        except TypeError:
-            # Ältere HA-Versionen akzeptieren den `target` Parameter ggf. nicht
-            # an dieser Stelle. Dann werden Target-Felder in die Service-Daten
-            # gemerged. Wenn auch das fehlschlägt, loggt der Aufrufer sauber.
-            fallback_data = dict(service_data)
-            fallback_data.update(_target_to_service_data(notify_target))
-            await self.hass.services.async_call(
-                "notify",
-                "send_message",
-                fallback_data,
-                blocking=False,
-            )
-
     async def _async_save_state(self, *, force: bool) -> None:
         """Speichert gedrosselt, außer ein Sunset/Unload erzwingt Persistenz."""
         if self._store is None:
@@ -683,7 +661,7 @@ def has_notification_target(target: Any) -> bool:
 
 def notification_target_entity_id(target: Any) -> str | None:
     """Extrahiert eine einzelne Notify-Entität für den Options-Flow-Default."""
-    target = _normalize_notify_target(target)
+    target = normalize_notification_target(target)
     entity_id = target.get("entity_id")
     if isinstance(entity_id, str) and entity_id.strip():
         return entity_id
@@ -691,6 +669,44 @@ def notification_target_entity_id(target: Any) -> str | None:
         first = entity_id[0]
         return first if isinstance(first, str) and first.strip() else None
     return None
+
+
+def normalize_notification_target(value: Any) -> dict[str, Any]:
+    """Macht Notify-Entity- oder TargetSelector-Werte servicefähig."""
+    return _normalize_notify_target(value)
+
+
+async def async_send_notification_message(
+    hass: Any,
+    title: str,
+    message: str,
+    notify_target: Mapping[str, Any],
+) -> None:
+    """Sendet bevorzugt per `notify.send_message` mit Target-Block."""
+    service_data = {
+        "title": title,
+        "message": message,
+    }
+    try:
+        await hass.services.async_call(
+            "notify",
+            "send_message",
+            service_data,
+            target=dict(notify_target),
+            blocking=False,
+        )
+        return
+    except TypeError:
+        # Ältere HA-Versionen akzeptieren den `target` Parameter ggf. nicht an
+        # dieser Stelle. Dann werden Target-Felder in die Service-Daten gemerged.
+        fallback_data = dict(service_data)
+        fallback_data.update(_target_to_service_data(notify_target))
+        await hass.services.async_call(
+            "notify",
+            "send_message",
+            fallback_data,
+            blocking=False,
+        )
 
 
 def calculate_report_value_eur(

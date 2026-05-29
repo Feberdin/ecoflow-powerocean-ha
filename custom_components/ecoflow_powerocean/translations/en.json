@@ -41,6 +41,8 @@
           "daily_report_notify_target": "Notification target",
           "daily_report_feed_in_tariff_eur_per_kwh": "Feed-in tariff (€/kWh)",
           "enable_backup_helpers": "Enable Backup Helpers",
+          "enable_backup_outage_notification": "Notify on power outage",
+          "backup_outage_notify_target": "Power outage notification target",
           "backup_reserved_soc_percent": "Reserved Backup SOC (%)",
           "power_outage_grid_power_threshold_w": "Grid power threshold for outage detection (W)",
           "power_outage_frequency_min_hz": "Minimum grid frequency for valid grid signal (Hz)",
@@ -54,6 +56,8 @@
           "daily_report_notify_target": "Notify entity that receives the daily report. It must be set when the report is enabled.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Used to calculate the daily value. Example from the Westnetz billing data: 0.077 €/kWh. Decimal comma or dot are both accepted.",
           "enable_backup_helpers": "Enables additional helper entities for backup runtime estimation and outage detection. The integration does not directly control third-party systems.",
+          "enable_backup_outage_notification": "Sends a notification when Backup Helpers detect a power outage and active battery supply.",
+          "backup_outage_notify_target": "Notify entity that receives the power outage notification. It must be set when the notification is enabled.",
           "backup_reserved_soc_percent": "Battery reserve that should remain untouched for backup planning. Example: 10 means the last 10% are excluded from the runtime estimate.",
           "power_outage_grid_power_threshold_w": "If the absolute grid power remains close to 0 W for a short period, this becomes one building block of the outage heuristic. Higher values make the detection more tolerant to measurement noise.",
           "power_outage_frequency_min_hz": "If grid frequency drops below this threshold or disappears after previously valid frequency samples, it is treated as evidence of a likely power outage. Keep this value clearly below 50 Hz.",
@@ -63,7 +67,9 @@
       }
     },
     "error": {
-      "missing_notification_target": "Select a notification target or disable the daily sunset report."
+      "missing_notification_target": "Select a notification target or disable the daily sunset report.",
+      "missing_backup_outage_notification_target": "Select a power outage notification target or disable the power outage notification.",
+      "backup_helpers_required": "Enable Backup Helpers so the power outage notification can evaluate the backup state."
     }
   },
   "entity": {
@@ -267,6 +273,9 @@
     "button": {
       "daily_report_test": {
         "name": "Send yesterday's daily report"
+      },
+      "backup_outage_notification_test": {
+        "name": "Test power outage notification"
       }
     }
   }

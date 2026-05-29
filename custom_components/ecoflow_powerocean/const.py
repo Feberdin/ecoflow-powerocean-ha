@@ -47,6 +47,12 @@ CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES = "backup_runtime_smoothing_minutes"
 CONF_BACKUP_CRITICAL_RUNTIME_MINUTES = "backup_critical_runtime_minutes"
 """Schwelle in Minuten, unterhalb der die Restlaufzeit als kritisch markiert wird."""
 
+CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION = "enable_backup_outage_notification"
+"""Aktiviert eine Nachricht, wenn Stromausfall und Batterieversorgung erkannt werden."""
+
+CONF_BACKUP_OUTAGE_NOTIFY_TARGET = "backup_outage_notify_target"
+"""Home-Assistant-Notify-Entität für Stromausfall-/Backup-Benachrichtigungen."""
+
 CONF_ENABLE_DAILY_SUNSET_REPORT = "enable_daily_sunset_report"
 """Aktiviert den optionalen Tagesbericht bei Sonnenuntergang."""
 
@@ -82,6 +88,12 @@ DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES = 10
 
 DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES = 120
 """Standardgrenze, ab der die Restlaufzeit als kritisch gilt."""
+
+DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION = False
+"""Stromausfall-Benachrichtigungen sind standardmäßig deaktiviert."""
+
+DEFAULT_BACKUP_OUTAGE_NOTIFY_TARGET = {}
+"""Kein Stromausfall-Benachrichtigungsziel voreingestellt."""
 
 DEFAULT_ENABLE_DAILY_SUNSET_REPORT = False
 """Täglicher Sonnenuntergangsbericht ist standardmäßig deaktiviert."""

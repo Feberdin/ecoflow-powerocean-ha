@@ -51,6 +51,7 @@ from .const import (
     BACKUP_RESERVED_SOC_PERCENT_MIN,
     BACKUP_RUNTIME_SMOOTHING_MINUTES_MAX,
     BACKUP_RUNTIME_SMOOTHING_MINUTES_MIN,
+    CONF_BACKUP_OUTAGE_NOTIFY_TARGET,
     CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
     CONF_DAILY_REPORT_NOTIFY_TARGET,
     CONF_BACKUP_CRITICAL_RUNTIME_MINUTES,
@@ -59,18 +60,21 @@ from .const import (
     CONF_DEBUG_MODE,
     CONF_ENABLE_DAILY_SUNSET_REPORT,
     CONF_ENABLE_BACKUP_HELPERS,
+    CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     CONF_NUM_BATTERY_PACKS,
     CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     CONF_SERIAL_NUMBER,
     DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
     DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
+    DEFAULT_BACKUP_OUTAGE_NOTIFY_TARGET,
     DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES,
     DEFAULT_BACKUP_RESERVED_SOC_PERCENT,
     DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     DEFAULT_DEBUG_MODE,
     DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
     DEFAULT_ENABLE_BACKUP_HELPERS,
+    DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     DEFAULT_NUM_BATTERY_PACKS,
     DEFAULT_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     DEFAULT_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
@@ -84,6 +88,7 @@ from .const import (
     POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MIN,
 )
 from .backup_helpers import normalize_backup_helper_options
+from .backup_notification import normalize_backup_outage_notification_options
 from .daily_report import (
     has_notification_target,
     notification_target_entity_id,
@@ -198,6 +203,9 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 normalized_input[CONF_NUM_BATTERY_PACKS]
             )
             normalized_input.update(normalize_backup_helper_options(normalized_input))
+            normalized_input.update(
+                normalize_backup_outage_notification_options(normalized_input)
+            )
             normalized_input.update(normalize_daily_report_options(normalized_input))
 
             if (
@@ -208,6 +216,22 @@ class EcoFlowOptionsFlow(OptionsFlow):
             ):
                 errors[CONF_DAILY_REPORT_NOTIFY_TARGET] = "missing_notification_target"
 
+            if (
+                normalized_input[CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION]
+                and not normalized_input[CONF_ENABLE_BACKUP_HELPERS]
+            ):
+                errors[CONF_ENABLE_BACKUP_HELPERS] = "backup_helpers_required"
+
+            if (
+                normalized_input[CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION]
+                and not has_notification_target(
+                    normalized_input[CONF_BACKUP_OUTAGE_NOTIFY_TARGET]
+                )
+            ):
+                errors[CONF_BACKUP_OUTAGE_NOTIFY_TARGET] = (
+                    "missing_backup_outage_notification_target"
+                )
+
             if not errors:
                 return self.async_create_entry(data=normalized_input)
 
@@ -215,6 +239,9 @@ class EcoFlowOptionsFlow(OptionsFlow):
             normalized_input if user_input is not None else self._entry.options
         )
         normalized_options = normalize_backup_helper_options(option_defaults)
+        normalized_backup_outage_options = normalize_backup_outage_notification_options(
+            option_defaults
+        )
         normalized_daily_options = normalize_daily_report_options(option_defaults)
 
         current_packs = int(
@@ -239,6 +266,23 @@ class EcoFlowOptionsFlow(OptionsFlow):
             vol.Optional(CONF_DAILY_REPORT_NOTIFY_TARGET, default=current_notify_entity)
             if current_notify_entity
             else vol.Optional(CONF_DAILY_REPORT_NOTIFY_TARGET)
+        )
+        current_backup_notify_entity = (
+            notification_target_entity_id(
+                normalized_backup_outage_options.get(
+                    CONF_BACKUP_OUTAGE_NOTIFY_TARGET,
+                    DEFAULT_BACKUP_OUTAGE_NOTIFY_TARGET,
+                )
+            )
+            or current_notify_entity
+        )
+        backup_notify_target_key = (
+            vol.Optional(
+                CONF_BACKUP_OUTAGE_NOTIFY_TARGET,
+                default=current_backup_notify_entity,
+            )
+            if current_backup_notify_entity
+            else vol.Optional(CONF_BACKUP_OUTAGE_NOTIFY_TARGET)
         )
         return self.async_show_form(
             step_id="init",
@@ -287,6 +331,18 @@ class EcoFlowOptionsFlow(OptionsFlow):
                         )
                     ),
                 ): BooleanSelector(BooleanSelectorConfig()),
+                vol.Required(
+                    CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
+                    default=bool(
+                        normalized_backup_outage_options.get(
+                            CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
+                            DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
+                        )
+                    ),
+                ): BooleanSelector(BooleanSelectorConfig()),
+                backup_notify_target_key: EntitySelector(
+                    EntitySelectorConfig(domain="notify")
+                ),
                 vol.Required(
                     CONF_BACKUP_RESERVED_SOC_PERCENT,
                     default=int(

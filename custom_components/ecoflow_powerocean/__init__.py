@@ -31,11 +31,17 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
     CONF_DEBUG_MODE,
+    CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     CONF_ENABLE_DAILY_SUNSET_REPORT,
+    DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     DEFAULT_DEBUG_MODE,
     DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
     DOMAIN,
     PLATFORMS,
+)
+from .backup_notification import (
+    BACKUP_NOTIFICATION_DATA_KEY,
+    BackupOutageNotificationManager,
 )
 from .coordinator import EcoFlowCoordinator
 from .daily_report import DAILY_REPORT_DATA_KEY, DailySunsetReportManager
@@ -118,6 +124,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             hass.data.setdefault(DAILY_REPORT_DATA_KEY, {})[entry.entry_id] = manager
 
+    if bool(
+        entry.options.get(
+            CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
+            DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
+        )
+    ):
+        backup_notification_manager = BackupOutageNotificationManager(
+            hass,
+            entry,
+            coordinator,
+        )
+        try:
+            await backup_notification_manager.async_setup()
+        except Exception as exc:
+            _LOGGER.warning(
+                "Stromausfall-Benachrichtigung konnte nicht gestartet werden: %s",
+                exc,
+            )
+        else:
+            hass.data.setdefault(BACKUP_NOTIFICATION_DATA_KEY, {})[
+                entry.entry_id
+            ] = backup_notification_manager
+
     # Sensor-Plattform initialisieren
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -157,6 +186,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     if daily_report_manager is not None:
         await daily_report_manager.async_shutdown()
+
+    backup_notification_manager = hass.data.get(
+        BACKUP_NOTIFICATION_DATA_KEY,
+        {},
+    ).pop(
+        entry.entry_id,
+        None,
+    )
+    if backup_notification_manager is not None:
+        await backup_notification_manager.async_shutdown()
 
     # MQTT-Verbindung trennen
     if coordinator:
