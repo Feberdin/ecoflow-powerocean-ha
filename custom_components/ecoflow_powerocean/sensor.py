@@ -79,6 +79,7 @@ from .const import (
     MODEL,
 )
 from .coordinator import EcoFlowCoordinator
+from .daily_report import DAILY_REPORT_DATA_KEY
 from .proto_decoder import BatteryPackData
 
 _LOGGER = logging.getLogger(__name__)
@@ -109,6 +110,12 @@ class EcoFlowEnergyAccumulatorDescription(SensorEntityDescription):
 @dataclass(frozen=True, kw_only=True)
 class EcoFlowBackupHelperSensorDescription(SensorEntityDescription):
     """Sensor-Beschreibung für optionale Backup-Helper-Sensoren."""
+    value_fn: Callable[[Any], Any] = lambda _: None
+
+
+@dataclass(frozen=True, kw_only=True)
+class EcoFlowDailyReportStatisticDescription(SensorEntityDescription):
+    """Sensor-Beschreibung für fortlaufende Tagesbericht-Statistiken."""
     value_fn: Callable[[Any], Any] = lambda _: None
 
 
@@ -649,6 +656,49 @@ BACKUP_HELPER_SENSOR_TYPES: tuple[EcoFlowBackupHelperSensorDescription, ...] = (
 )
 
 
+DAILY_REPORT_STATISTIC_SENSOR_TYPES: tuple[
+    EcoFlowDailyReportStatisticDescription,
+    ...,
+] = (
+    EcoFlowDailyReportStatisticDescription(
+        key="daily_report_total_export_energy",
+        translation_key="daily_report_total_export_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:transmission-tower-export",
+        value_fn=lambda manager: round(
+            manager.accumulator.state.total_export_kwh,
+            4,
+        ),
+    ),
+    EcoFlowDailyReportStatisticDescription(
+        key="daily_report_total_value",
+        translation_key="daily_report_total_value",
+        native_unit_of_measurement="EUR",
+        device_class=getattr(SensorDeviceClass, "MONETARY", None),
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:cash",
+        value_fn=lambda manager: round(
+            manager.accumulator.state.total_value_eur,
+            2,
+        ),
+    ),
+    EcoFlowDailyReportStatisticDescription(
+        key="daily_report_total_battery_full_hours",
+        translation_key="daily_report_total_battery_full_hours",
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-check",
+        value_fn=lambda manager: round(
+            manager.accumulator.state.total_battery_full_seconds / 3600.0,
+            3,
+        ),
+    ),
+)
+
+
 # ── Plattform-Setup ───────────────────────────────────────────────────────────
 
 async def async_setup_platform(
@@ -729,6 +779,19 @@ async def async_setup_entry(
             entities.append(
                 EcoFlowBackupHelperSensor(
                     coordinator=coordinator,
+                    description=desc,
+                    device_info=device_info,
+                    serial=serial,
+                )
+            )
+
+    daily_report_manager = hass.data.get(DAILY_REPORT_DATA_KEY, {}).get(entry.entry_id)
+    if daily_report_manager is not None:
+        for desc in DAILY_REPORT_STATISTIC_SENSOR_TYPES:
+            entities.append(
+                EcoFlowDailyReportStatisticSensor(
+                    coordinator=coordinator,
+                    manager=daily_report_manager,
                     description=desc,
                     device_info=device_info,
                     serial=serial,
@@ -1046,6 +1109,61 @@ class EcoFlowBackupHelperSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEnt
         if evaluation.runtime_estimate_hours is not None:
             attrs["runtime_estimate_hours"] = evaluation.runtime_estimate_hours
         return attrs
+
+
+class EcoFlowDailyReportStatisticSensor(
+    CoordinatorEntity[EcoFlowCoordinator],
+    SensorEntity,
+):
+    """
+    Fortlaufender Statistik-Sensor fuer den optionalen Tagesbericht.
+
+    Warum:
+        Home Assistant kann `total_increasing` Sensoren langfristig statistisch
+        auswerten. Diese Sensoren machen die Tagesbericht-Werte nicht nur als
+        Nachricht, sondern auch im Verlauf sichtbar.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator,
+        manager,
+        description,
+        device_info,
+        serial,
+    ):
+        super().__init__(coordinator)
+        self._manager = manager
+        self.entity_description = description
+        self._attr_unique_id = f"{serial}_{description.key}"
+        self._attr_device_info = device_info
+
+    @property
+    def native_value(self) -> Any:
+        try:
+            return self.entity_description.value_fn(self._manager)
+        except Exception:
+            return None
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        state = self._manager.accumulator.state
+        return {
+            "local_date": state.local_date,
+            "current_day_export_kwh": round(state.daily_export_kwh, 4),
+            "current_day_battery_full_seconds": round(
+                state.battery_full_seconds,
+                1,
+            ),
+            "previous_local_date": state.previous_local_date,
+            "last_update_iso": state.last_update_iso,
+        }
 
 
 # ── Hilfsfunktionen ───────────────────────────────────────────────────────────

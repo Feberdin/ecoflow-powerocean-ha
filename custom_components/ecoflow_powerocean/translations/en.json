@@ -218,6 +218,15 @@
       "battery_charge_energy": {
         "name": "Battery Charged"
       },
+      "daily_report_total_export_energy": {
+        "name": "Daily Report Total Export"
+      },
+      "daily_report_total_value": {
+        "name": "Daily Report Total Value"
+      },
+      "daily_report_total_battery_full_hours": {
+        "name": "Daily Report Battery Full Total Time"
+      },
       "connection_status": {
         "name": "Connection Status",
         "state": {

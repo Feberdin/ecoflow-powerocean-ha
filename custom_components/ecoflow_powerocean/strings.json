@@ -218,6 +218,15 @@
       "battery_charge_energy": {
         "name": "Batterie-Ladung"
       },
+      "daily_report_total_export_energy": {
+        "name": "Tagesbericht Gesamt-Einspeisung"
+      },
+      "daily_report_total_value": {
+        "name": "Tagesbericht Gesamt-Vergütung"
+      },
+      "daily_report_total_battery_full_hours": {
+        "name": "Tagesbericht Akku 100 % Gesamtzeit"
+      },
       "connection_status": {
         "name": "Verbindungsstatus",
         "state": {

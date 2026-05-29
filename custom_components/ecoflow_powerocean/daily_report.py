@@ -13,6 +13,7 @@ Input:
 
 Output:
     - Persistenter Tages-Zwischenstand in `.storage`
+    - Fortlaufende Gesamtwerte fuer Home-Assistant-Statistik-Sensoren
     - Eine optionale `notify.send_message` Nachricht pro lokalem Datum
 
 Wichtige Invarianten:
@@ -59,6 +60,7 @@ DAILY_REPORT_DATA_KEY = f"{DOMAIN}_daily_report"
 STORAGE_VERSION = 1
 STORAGE_KEY_PREFIX = f"{DOMAIN}.daily_report"
 STORE_SAVE_THROTTLE_SECONDS = 60
+SUNSET_CATCH_UP_INTERVAL_SECONDS = 5 * 60
 
 # Warum:
 # Bei MQTT-/HA-Ausfällen kann der letzte bekannte Zustand lange alt sein. Für
@@ -91,6 +93,9 @@ class DailyReportState:
     previous_daily_export_kwh: float = 0.0
     previous_battery_full_seconds: float = 0.0
     previous_last_update_iso: str | None = None
+    total_export_kwh: float = 0.0
+    total_value_eur: float = 0.0
+    total_battery_full_seconds: float = 0.0
 
     @classmethod
     def from_mapping(
@@ -127,6 +132,18 @@ class DailyReportState:
             ),
             previous_last_update_iso=_coerce_optional_str(
                 raw.get("previous_last_update_iso")
+            ),
+            total_export_kwh=_coerce_float(
+                raw.get("total_export_kwh"),
+                _legacy_total_export_kwh(raw),
+            ),
+            total_value_eur=_coerce_float(
+                raw.get("total_value_eur"),
+                _legacy_total_value_eur(raw),
+            ),
+            total_battery_full_seconds=_coerce_float(
+                raw.get("total_battery_full_seconds"),
+                _legacy_total_battery_full_seconds(raw),
             ),
         )
 
@@ -167,6 +184,9 @@ class DailyReportAccumulator:
             previous_daily_export_kwh=self.state.daily_export_kwh,
             previous_battery_full_seconds=self.state.battery_full_seconds,
             previous_last_update_iso=self.state.last_update_iso,
+            total_export_kwh=self.state.total_export_kwh,
+            total_value_eur=self.state.total_value_eur,
+            total_battery_full_seconds=self.state.total_battery_full_seconds,
         )
 
     @staticmethod
@@ -180,6 +200,7 @@ class DailyReportAccumulator:
         *,
         export_power_w: float,
         soc_percent: float | None,
+        tariff_eur_per_kwh: float = 0.0,
     ) -> None:
         """
         Aktualisiert den Tagesstand per Links-Riemann-Summe.
@@ -199,7 +220,8 @@ class DailyReportAccumulator:
         if previous_update is not None:
             delta_seconds = (now - previous_update).total_seconds()
             if delta_seconds > 0:
-                self._integrate_export(delta_seconds)
+                export_delta_kwh = self._integrate_export(delta_seconds)
+                self._integrate_value(export_delta_kwh, tariff_eur_per_kwh)
                 self._integrate_full_soc(delta_seconds)
 
         self.state.last_update_iso = now.isoformat()
@@ -210,24 +232,41 @@ class DailyReportAccumulator:
         """Markiert den aktuellen lokalen Tag als erfolgreich gemeldet."""
         self.state.last_sent_date = self.state.local_date
 
-    def _integrate_export(self, delta_seconds: float) -> None:
+    def _integrate_export(self, delta_seconds: float) -> float:
         """Integriert die vorherige Einspeiseleistung defensiv in kWh."""
         if self.state.last_export_power_w is None:
-            return
+            return 0.0
         counted_seconds = min(delta_seconds, MAX_EXPORT_INTEGRATION_GAP_SECONDS)
         previous_power_w = max(float(self.state.last_export_power_w), 0.0)
-        self.state.daily_export_kwh += (previous_power_w / 1000.0) * (
+        delta_kwh = (previous_power_w / 1000.0) * (
             counted_seconds / 3600.0
+        )
+        self.state.daily_export_kwh += delta_kwh
+        self.state.total_export_kwh += delta_kwh
+        return delta_kwh
+
+    def _integrate_value(
+        self,
+        export_delta_kwh: float,
+        tariff_eur_per_kwh: float,
+    ) -> None:
+        """Fortlaufender Verguetungszaehler; Tarifwechsel senken den Zaehler nie."""
+        if export_delta_kwh <= 0:
+            return
+        self.state.total_value_eur += export_delta_kwh * normalize_feed_in_tariff(
+            tariff_eur_per_kwh
         )
 
     def _integrate_full_soc(self, delta_seconds: float) -> None:
         """Zählt Akku-100%-Zeit anhand des vorherigen SOC-Zustands."""
         if not self.should_count_full_soc(self.state.last_soc_percent):
             return
-        self.state.battery_full_seconds += min(
+        counted_seconds = min(
             delta_seconds,
             MAX_FULL_SOC_COUNT_GAP_SECONDS,
         )
+        self.state.battery_full_seconds += counted_seconds
+        self.state.total_battery_full_seconds += counted_seconds
 
 
 class DailySunsetReportManager:
@@ -283,7 +322,12 @@ class DailySunsetReportManager:
         if remove_sunset_listener is not None:
             self.entry.async_on_unload(remove_sunset_listener)
 
+        remove_catch_up_listener = self._async_track_sunset_catch_up()
+        if remove_catch_up_listener is not None:
+            self.entry.async_on_unload(remove_catch_up_listener)
+
         await self.async_process_coordinator_update(force_save=True)
+        await self.async_send_due_sunset_report()
 
     async def async_shutdown(self) -> None:
         """Erzwingt einen letzten Storage-Schreibvorgang beim Entladen."""
@@ -310,6 +354,9 @@ class DailySunsetReportManager:
             self._local_now(),
             export_power_w=export_power_w,
             soc_percent=soc_percent,
+            tariff_eur_per_kwh=float(
+                self.options[CONF_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH]
+            ),
         )
         await self._async_save_state(force=force_save)
 
@@ -469,9 +516,68 @@ class DailySunsetReportManager:
             _handle_sun_state_change,
         )
 
-    def _handle_sunset(self, _now: datetime) -> None:
+    def _async_track_sunset_catch_up(self) -> Callable[[], None] | None:
+        """
+        Registriert einen Sicherheits-Trigger nach Sonnenuntergang.
+
+        Warum:
+            `async_track_sunset` ist der eigentliche Trigger. Wenn HA aber genau
+            beim Sonnenuntergang neu startet oder ein Runtime-Problem den
+            einmaligen Callback verhindert, soll der Tagesbericht nicht
+            kommentarlos verloren gehen. Der Catch-up prueft alle paar Minuten,
+            ob der heutige Sonnenuntergang bereits vorbei ist.
+        """
+        try:
+            from homeassistant.helpers.event import async_track_time_interval
+        except ImportError:
+            _LOGGER.debug("Tagesbericht-Catch-up nicht verfügbar: Event-Helper fehlt")
+            return None
+
+        return async_track_time_interval(
+            self.hass,
+            self._handle_sunset_catch_up,
+            timedelta(seconds=SUNSET_CATCH_UP_INTERVAL_SECONDS),
+        )
+
+    def _handle_sunset(self, _now: datetime | None = None) -> None:
         """Callback des Event-Helpers; sendet asynchron und blockiert HA nicht."""
+        _LOGGER.debug("Tagesbericht: Sunset-Trigger ausgelöst")
         self.hass.async_create_task(self.async_send_sunset_report())
+
+    def _handle_sunset_catch_up(self, _now: datetime) -> None:
+        """Periodischer Sicherheitscheck fuer verpasste Sunset-Callbacks."""
+        self.hass.async_create_task(self.async_send_due_sunset_report())
+
+    async def async_send_due_sunset_report(self) -> None:
+        """Sendet nachtraeglich, wenn der heutige Sonnenuntergang schon vorbei ist."""
+        if self._is_after_today_sunset():
+            _LOGGER.debug("Tagesbericht: Sunset-Catch-up ist faellig")
+            await self.async_send_sunset_report()
+
+    def _is_after_today_sunset(self) -> bool:
+        """
+        Prüft anhand von `sun.sun`, ob der heutige Sunset bereits vorbei ist.
+
+        Beispiel:
+            23:00 Uhr, `sun.sun=below_horizon`, `next_setting=morgen` -> True.
+            03:00 Uhr, `sun.sun=below_horizon`, `next_setting=heute Abend` -> False.
+        """
+        if not hasattr(self.hass, "states"):
+            return False
+
+        state = self.hass.states.get("sun.sun")
+        if state is None or state.state != "below_horizon":
+            return False
+
+        next_setting = _parse_datetime(
+            state.attributes.get("next_setting"),
+            self._local_now(),
+        )
+        if next_setting is None:
+            return False
+
+        local_next_setting = _as_local_time(next_setting)
+        return local_next_setting.date() > self._local_now().date()
 
     async def _async_send_notification(
         self,
@@ -687,6 +793,43 @@ def _coerce_optional_str(value: Any) -> str | None:
     return str(value)
 
 
+def _legacy_total_export_kwh(raw: Mapping[str, Any]) -> float:
+    """
+    Migriert alte Storage-Staende ohne Gesamtzaehler konservativ.
+
+    Warum:
+        Versionen vor den Statistik-Sensoren speicherten nur den aktuellen und
+        optional den vorherigen Tag. Mehr Historie kann ohne Recorder-Zugriff
+        nicht verlaesslich rekonstruiert werden.
+    """
+    return max(
+        _coerce_float(raw.get("daily_export_kwh"), 0.0),
+        0.0,
+    ) + max(
+        _coerce_float(raw.get("previous_daily_export_kwh"), 0.0),
+        0.0,
+    )
+
+
+def _legacy_total_battery_full_seconds(raw: Mapping[str, Any]) -> float:
+    """Migriert alte Storage-Staende ohne Gesamtzaehler fuer Akku-100%-Zeit."""
+    return max(
+        _coerce_float(raw.get("battery_full_seconds"), 0.0),
+        0.0,
+    ) + max(
+        _coerce_float(raw.get("previous_battery_full_seconds"), 0.0),
+        0.0,
+    )
+
+
+def _legacy_total_value_eur(raw: Mapping[str, Any]) -> float:
+    """Migriert alte Storage-Staende mit dem dokumentierten Standardtarif."""
+    return (
+        _legacy_total_export_kwh(raw)
+        * DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH
+    )
+
+
 def _parse_datetime(value: str | None, reference: datetime) -> datetime | None:
     """Parst ISO-Zeitpunkte und gleicht naive/aware Zeitstempel an."""
     if not value:
@@ -701,6 +844,18 @@ def _parse_datetime(value: str | None, reference: datetime) -> datetime | None:
     if parsed.tzinfo is not None and reference.tzinfo is None:
         return parsed.replace(tzinfo=None)
     return parsed
+
+
+def _as_local_time(value: datetime) -> datetime:
+    """Wandelt einen Zeitpunkt in Home-Assistant-Lokalzeit um."""
+    try:
+        from homeassistant.util import dt as dt_util
+
+        return dt_util.as_local(value)
+    except ImportError:
+        if value.tzinfo is not None:
+            return value.astimezone()
+        return value
 
 
 def _format_de(value: float, digits: int) -> str:

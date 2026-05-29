@@ -121,6 +121,48 @@ class DailyReportTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(acc.state.daily_export_kwh, 0.5)
 
+    def test_totals_accumulate_export_value_and_full_soc_duration(self) -> None:
+        acc = self._accumulator()
+        acc.update(self.start, export_power_w=1000.0, soc_percent=100)
+        acc.update(
+            self.start + timedelta(minutes=10),
+            export_power_w=1000.0,
+            soc_percent=100,
+            tariff_eur_per_kwh=0.077,
+        )
+        acc.update(
+            self.start + timedelta(minutes=20),
+            export_power_w=1000.0,
+            soc_percent=100,
+            tariff_eur_per_kwh=0.077,
+        )
+        acc.update(
+            self.start + timedelta(minutes=30),
+            export_power_w=0.0,
+            soc_percent=100,
+            tariff_eur_per_kwh=0.077,
+        )
+
+        self.assertAlmostEqual(acc.state.total_export_kwh, 0.5)
+        self.assertAlmostEqual(acc.state.total_value_eur, 0.0385)
+        self.assertEqual(acc.state.total_battery_full_seconds, 1800.0)
+
+    def test_legacy_storage_migrates_available_totals(self) -> None:
+        state = daily_report.DailyReportState.from_mapping(
+            {
+                "local_date": "2026-05-26",
+                "daily_export_kwh": 2.0,
+                "battery_full_seconds": 600.0,
+                "previous_daily_export_kwh": 3.0,
+                "previous_battery_full_seconds": 1200.0,
+            },
+            default_local_date="2026-05-26",
+        )
+
+        self.assertAlmostEqual(state.total_export_kwh, 5.0)
+        self.assertAlmostEqual(state.total_value_eur, 0.385)
+        self.assertEqual(state.total_battery_full_seconds, 1800.0)
+
     def test_energy_integration_ignores_negative_export_power(self) -> None:
         acc = self._accumulator()
         acc.update(self.start, export_power_w=-500.0, soc_percent=80)
@@ -178,6 +220,8 @@ class DailyReportTestCase(unittest.TestCase):
         self.assertEqual(acc.state.previous_local_date, self.start.date().isoformat())
         self.assertAlmostEqual(acc.state.previous_daily_export_kwh, 0.5)
         self.assertEqual(acc.state.previous_battery_full_seconds, 600.0)
+        self.assertAlmostEqual(acc.state.total_export_kwh, 0.5)
+        self.assertEqual(acc.state.total_battery_full_seconds, 600.0)
 
     def test_duration_formatting(self) -> None:
         self.assertEqual(daily_report.format_duration(0), "0 min")
@@ -368,6 +412,93 @@ class DailyReportTestCase(unittest.TestCase):
             args[2]["message"],
         )
         self.assertEqual(kwargs["target"], {"entity_id": "notify.mobile_app"})
+
+    def test_sunset_callback_accepts_home_assistant_no_argument_call(self) -> None:
+        """`async_track_sunset` ruft den Callback ohne Zeitargument auf."""
+
+        class FakeHass:
+            def __init__(self) -> None:
+                self.tasks = []
+
+            def async_create_task(self, task):
+                self.tasks.append(task)
+                return task
+
+        class FakeEntry:
+            options = {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "notify.mobile_app",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+
+        class FakeCoordinator:
+            data = None
+
+        class FakeManager(daily_report.DailySunsetReportManager):
+            def __init__(self, hass, entry, coordinator):
+                super().__init__(hass, entry, coordinator)
+                self.sent = False
+
+            async def async_send_sunset_report(self) -> None:
+                self.sent = True
+
+        hass = FakeHass()
+        manager = FakeManager(hass, FakeEntry(), FakeCoordinator())
+
+        manager._handle_sunset()
+        asyncio.run(hass.tasks[0])
+
+        self.assertTrue(manager.sent)
+
+    def test_sunset_catch_up_detects_only_finished_today_sunset(self) -> None:
+        """Catch-up soll nachts vor Sonnenaufgang nicht zu frueh senden."""
+
+        class FakeState:
+            def __init__(self, state, next_setting) -> None:
+                self.state = state
+                self.attributes = {"next_setting": next_setting}
+
+        class FakeStates:
+            def __init__(self, state) -> None:
+                self._state = state
+
+            def get(self, entity_id):
+                return self._state if entity_id == "sun.sun" else None
+
+        class FakeHass:
+            def __init__(self, state) -> None:
+                self.states = FakeStates(state)
+
+        class FakeEntry:
+            options = {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "notify.mobile_app",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+
+        class FakeCoordinator:
+            data = None
+
+        class FakeManager(daily_report.DailySunsetReportManager):
+            now = datetime(2026, 5, 26, 23, 0)
+
+            def _local_now(self):
+                return self.now
+
+        after_sunset = FakeManager(
+            FakeHass(FakeState("below_horizon", "2026-05-27T19:00:00")),
+            FakeEntry(),
+            FakeCoordinator(),
+        )
+        self.assertTrue(after_sunset._is_after_today_sunset())
+
+        before_sunrise = FakeManager(
+            FakeHass(FakeState("below_horizon", "2026-05-26T19:00:00")),
+            FakeEntry(),
+            FakeCoordinator(),
+        )
+        before_sunrise.now = datetime(2026, 5, 26, 3, 0)
+        self.assertFalse(before_sunrise._is_after_today_sunset())
 
 
 if __name__ == "__main__":
