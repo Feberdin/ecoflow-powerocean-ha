@@ -21,6 +21,7 @@ Inoffizielle Home Assistant Integration für die **EcoFlow PowerOcean Plus** Pho
 - **Gap-Reconciliation** — bei kurzer Internet-Unterbrechung wird die Energielücke beim Reconnect transparent geschätzt
 - **Backup Helpers (optional)** — Laufzeitabschätzung, Stromausfall-Erkennung und Hilfszustände für eigene Automationen
 - **Täglicher Sonnenuntergangsbericht (optional)** — Einspeise-kWh, geschätzte Vergütung und Akku-100%-Dauer per Home-Assistant-Nachricht
+- **Praxisbeispiele** — YAML-Vorlagen für eigene Automationen wie PV-Überschussladen
 
 ---
 
@@ -287,6 +288,18 @@ action:
 Diese Beispiele zeigen den gewünschten Architekturpunkt:
 - **Die Integration liefert Hilfs-Entitäten**
 - **Home Assistant entscheidet per Automation, was konkret passieren soll**
+
+### PV-Überschussladen mit Wallbox
+
+Ein ausführliches Beispiel für PV-Überschussladen mit EcoFlow-Sensoren und
+einer steuerbaren Wallbox liegt hier:
+
+- [Anleitung: PV-Überschussladen übertragen](docs/pv-ueberschussladen.md)
+- [YAML-Vorlage für go-eCharger/Wallbox](examples/pv-ueberschussladen-goecharger.yaml)
+
+Die Vorlage nutzt EcoFlow-Werte für Solarleistung, Hausverbrauch, Netzleistung
+und Speicher-SOC. Die konkrete Wallbox- oder Verbrauchersteuerung bleibt in
+Home Assistant und muss auf die eigenen Entity-IDs angepasst werden.
 
 ---
 

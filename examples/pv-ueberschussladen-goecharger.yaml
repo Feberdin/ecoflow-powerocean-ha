@@ -1,0 +1,245 @@
+---
+# PV-Ueberschussladen mit EcoFlow PowerOcean und go-eCharger.
+#
+# Zweck:
+#   Diese Automation startet und regelt eine Wallbox anhand von PV-Ueberschuss,
+#   Speicher-SOC und optionalem Fahrzeug-SOC.
+#
+# Input:
+#   - EcoFlow-Sensoren: Solarleistung, Hausverbrauch, Netzleistung, Speicher-SOC
+#   - Wallbox-Sensoren: aktuelle Ladeleistung, Phasenstroeme, Fahrzeugstatus
+#   - optional Fahrzeug-Sensoren: Ladestand und Ladelimit
+#
+# Output:
+#   - Ladefreigabe der Wallbox ein/aus
+#   - optional Ladestrom per Wallbox-Service setzen
+#
+# Wichtige Invarianten:
+#   - Alle entity_id-Werte sind Platzhalter und muessen angepasst werden.
+#   - Bei Einspeisung muss die Netzleistung negativ sein.
+#   - `watts_per_amp` muss zur Phasenanzahl passen:
+#       einphasig ca. 230 W/A, dreiphasig ca. 690 W/A.
+#
+# Debug:
+#   - Home Assistant -> Automationen -> diese Automation -> Spuren
+#   - Entwicklerwerkzeuge -> Zustaende -> alle Entity-IDs pruefen
+
+- id: pv_ueberschussladen_wallbox
+  alias: PV-Ueberschussladen Wallbox
+  description: >
+    Regelt eine Wallbox lokal nach PV-Ueberschuss. EcoFlow liefert Solar-,
+    Hausverbrauchs-, Netz- und Speicherwerte. Das Fahrzeug wird optional nur
+    fuer Ladestand und Ladelimit gelesen.
+
+  trigger:
+    - platform: time_pattern
+      minutes: "/1"
+
+  condition: []
+
+  action:
+    # Warum:
+    # Diese Werte sind die Stellschrauben. Sie werden bewusst oben gesammelt,
+    # damit du die Automation ohne tiefes Lesen der Templates anpassen kannst.
+    - variables:
+        car_target_soc: 100
+        storage_start_soc: 97
+        storage_stop_soc: 90
+        min_solar_w: 500
+        min_solar_keep_w: 200
+        min_export_w: 100
+        watts_per_amp: 690
+        battery_rounding_w: 690
+        min_a: 6
+        max_a: 16
+
+        # Optionales Langstreckenfenster:
+        # Beispiel: jeden zweiten Sonntag zwischen 04:00 und 14:00 Uhr.
+        long_trip_anchor_date: "2026-07-19"
+        long_trip_interval_days: 14
+        long_trip_start_hour: 4
+        long_trip_end_hour: 14
+
+        # Fahrzeugwerte:
+        # Wenn kein Fahrzeug-SOC vorhanden ist, die Entity ersetzen oder die
+        # SOC-Bedingungen aus den Start-/Stop-Templates entfernen.
+        car_soc: "{{ states('sensor.mein_auto_ladestand') | float(999) }}"
+        charge_limit_pct: "{{ states('number.mein_auto_ladelimit') | float(0) }}"
+        car_soc_known: >-
+          {{
+            states('sensor.mein_auto_ladestand')
+            not in ['unknown', 'unavailable', 'none', 'None', '']
+          }}
+
+        # EcoFlow-Werte:
+        # Falls du mehrere Batterie-Packs hast, kannst du wie unten den
+        # niedrigsten Pack-SOC verwenden. So startet das Laden nicht, wenn ein
+        # einzelnes Pack noch deutlich niedriger ist.
+        storage_soc: >-
+          {% set fallback = states('sensor.mein_powerocean_gesamt_ladestand') | float(0) %}
+          {% set values = [
+            states('sensor.mein_powerocean_battery_1_soc') | float(fallback),
+            states('sensor.mein_powerocean_battery_2_soc') | float(fallback),
+            states('sensor.mein_powerocean_battery_3_soc') | float(fallback)
+          ] %}
+          {{ values | min }}
+        solar_w: "{{ states('sensor.mein_powerocean_solar_leistung') | float(0) }}"
+        house_w: "{{ states('sensor.mein_powerocean_hausverbrauch') | float(0) }}"
+        grid_w: "{{ states('sensor.mein_powerocean_netz_leistung') | float(0) }}"
+        sun_elevation: "{{ state_attr('sun.sun', 'elevation') | float(0) }}"
+
+        # Wallbox-Werte:
+        # `charger_w` ist die aktuelle Ladeleistung. Wenn deine Wallbox schon W
+        # liefert, entferne `* 1000`.
+        charger_w: "{{ states('sensor.meine_wallbox_leistung_kw') | float(0) * 1000 }}"
+        current_a: >-
+          {% set phase_currents = [
+            states('sensor.meine_wallbox_ladestrom_l1') | float(0),
+            states('sensor.meine_wallbox_ladestrom_l2') | float(0),
+            states('sensor.meine_wallbox_ladestrom_l3') | float(0)
+          ] %}
+          {% if (phase_currents | max) > 0.5 %}
+            {{ (phase_currents | max) | round(0) | int }}
+          {% else %}
+            {{ states('sensor.meine_wallbox_max_current') | int(6) }}
+          {% endif %}
+        car_status: "{{ states('sensor.meine_wallbox_fahrzeugstatus') }}"
+
+    # Warum:
+    # Diese zweite Variablengruppe berechnet den tatsaechlichen Ueberschuss.
+    # Der Hausverbrauch wird um die aktuelle Wallbox-Leistung bereinigt, damit
+    # die Wallbox nicht ihren eigenen Verbrauch als Grund zum Stoppen wertet.
+    - variables:
+        house_without_car_w: >-
+          {{ [house_w | float(0) - charger_w | float(0), 0] | max }}
+        free_solar_w: >-
+          {{ solar_w | float(0) - ([house_w | float(0) - charger_w | float(0), 0] | max) }}
+        min_charge_w: "{{ (min_a | int) * (watts_per_amp | int) }}"
+        target_a: >-
+          {% set free_w = solar_w | float(0) - ([house_w | float(0) - charger_w | float(0), 0] | max) %}
+          {% set min_charge_w_calc = (min_a | int) * (watts_per_amp | int) %}
+          {% if free_w < min_charge_w_calc %}
+            {{ min_a | int }}
+          {% else %}
+            {% set raw_a = ((free_w + (battery_rounding_w | int)) / (watts_per_amp | int)) | int %}
+            {{ [[raw_a, min_a | int] | max, max_a | int] | min }}
+          {% endif %}
+        car_connected: >-
+          {{
+            car_status
+            not in ['no car', 'unknown', 'unavailable', 'none', 'None', '']
+          }}
+        long_trip_active: >-
+          {% set anchor = strptime(long_trip_anchor_date, '%Y-%m-%d').date() %}
+          {% set days_since_anchor = (now().date() - anchor).days %}
+          {{
+            now().weekday() == 6
+            and days_since_anchor >= 0
+            and days_since_anchor % (long_trip_interval_days | int) == 0
+            and now().hour >= long_trip_start_hour | int
+            and now().hour < long_trip_end_hour | int
+          }}
+        export_w: "{{ [0 - (grid_w | float(0)), 0] | max }}"
+
+    # Warum:
+    # Die Reihenfolge ist wichtig:
+    # 1. Langstrecke darf die PV-Logik uebersteuern.
+    # 2. Stoppen schuetzt Speicher und vermeidet Laden bei Nacht.
+    # 3. Starten/Regeln nutzt nur echten Ueberschuss.
+    - choose:
+        - alias: Langstrecke vorbereiten
+          conditions:
+            - condition: template
+              value_template: >-
+                {{
+                  long_trip_active | bool(false)
+                  and car_connected | bool(false)
+                  and (
+                    not (car_soc_known | bool(false))
+                    or car_soc | float(999) < car_target_soc | int
+                  )
+                }}
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ current_a | int != max_a | int }}"
+              then:
+                - service: goecharger.set_max_current
+                  data:
+                    max_current: "{{ max_a | int }}"
+            - service: switch.turn_on
+              target:
+                entity_id: switch.meine_wallbox_ladefreigabe
+            - if:
+                - condition: template
+                  value_template: >-
+                    {{
+                      charge_limit_pct | float(0) > 0
+                      and charge_limit_pct | float(0) < car_target_soc | int
+                    }}
+              then:
+                - service: number.set_value
+                  target:
+                    entity_id: number.mein_auto_ladelimit
+                  data:
+                    value: "{{ car_target_soc | int }}"
+                  continue_on_error: true
+
+        - alias: Stoppen
+          conditions:
+            - condition: template
+              value_template: >-
+                {{
+                  not (car_connected | bool(false))
+                  or (
+                    car_soc_known | bool(false)
+                    and car_soc | float(999) >= car_target_soc | int
+                  )
+                  or (
+                    not (long_trip_active | bool(false))
+                    and (
+                      storage_soc | float(0) < storage_stop_soc | int
+                      or sun_elevation | float(0) < 0
+                      or (
+                        solar_w | float(0) < min_solar_keep_w | int
+                        and export_w | float(0) < min_export_w | int
+                      )
+                    )
+                  )
+                }}
+          sequence:
+            - service: switch.turn_off
+              target:
+                entity_id: switch.meine_wallbox_ladefreigabe
+
+        - alias: Starten und regeln
+          conditions:
+            - condition: template
+              value_template: >-
+                {{
+                  car_connected | bool(false)
+                  and car_soc | float(999) < car_target_soc | int
+                  and storage_soc | float(0) >= storage_start_soc | int
+                  and sun_elevation | float(0) >= 0
+                  and solar_w | float(0) >= min_solar_w | int
+                  and (
+                    free_solar_w | float(0) > 0
+                    or export_w | float(0) >= min_export_w | int
+                  )
+                }}
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ current_a | int != target_a | int }}"
+              then:
+                - service: goecharger.set_max_current
+                  data:
+                    max_current: "{{ target_a | int }}"
+            - service: switch.turn_on
+              target:
+                entity_id: switch.meine_wallbox_ladefreigabe
+
+  mode: single
+  max_exceeded: silent
+  trace:
+    stored_traces: 20
