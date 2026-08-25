@@ -1,0 +1,22 @@
+# Purpose: Keep repository dependencies current through reviewable pull requests.
+# Input/Output: Dependabot reads tracked manifests and opens grouped update PRs.
+# Invariants: Updates receive no runtime secrets and must pass repository CI before merge.
+# Debugging: Check Insights -> Dependency graph -> Dependabot for update logs.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      github-actions-root:
+        patterns:
+          - "*"
