@@ -9,6 +9,6 @@
   "integration_type": "device",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/Feberdin/ecoflow-powerocean-ha/issues",
-  "requirements": ["paho-mqtt>=1.6.1"],
+  "requirements": ["paho-mqtt>=2.1.0"],
   "version": "0.4.13"
 }
