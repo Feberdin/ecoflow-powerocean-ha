@@ -136,7 +136,7 @@ class EmsHeartbeatData:
     mppt_strings: list[MpptStringData] = field(default_factory=list)
     """Liste der MPPT-PV-Strings (je nach Anlagenaufbau 1–4 Einträge)."""
     battery_power_w: float = 0.0
-    """Gesamte Batterieleistung in Watt (positiv=Entladen, negativ=Laden)."""
+    """Rohwert `emsBpPower`; wird vor Anzeige auf Sensor-Konvention normalisiert."""
     bus_volt: float = 0.0
     """DC-Busspannung des Wechselrichters in Volt."""
     bp_alive_num: int = 0

@@ -277,11 +277,24 @@ def _ems_solar_power_w(data: Mapping[str, Any]) -> float:
 
 
 def _ems_battery_power_w(data: Mapping[str, Any]) -> float:
-    """Fallback: Batterieleistung aus EMS_HEARTBEAT."""
+    """Fallback: rohe Batterieleistung aus EMS_HEARTBEAT."""
     ems = data.get(DATA_EMS_HEARTBEAT)
     if ems is None:
         return 0.0
     return float(ems.battery_power_w)
+
+
+def _normalized_ems_battery_power_w(data: Mapping[str, Any]) -> float:
+    """
+    Normalisiert die EMS-Batterieleistung auf die Sensor-Konvention.
+
+    Warum:
+        In beobachteten PowerOcean-EMS-Telegrammen ist `emsBpPower` gegenüber
+        der Energy-Stream-Konvention invertiert: nachts sinkt die Batterie,
+        während EMS negative Leistung meldet. Die Sensoren erwarten aber
+        positiv=Entladen und negativ=Laden.
+    """
+    return -_ems_battery_power_w(data)
 
 
 def _coerce_observed_at(value: Any) -> datetime | None:
@@ -349,7 +362,7 @@ def normalized_power_components(data: Mapping[str, Any]) -> tuple[float, float, 
     if stream is None or _energy_stream_is_stale(data):
         solar = _ems_solar_power_w(data)
         grid = _ems_grid_power_w(data)
-        battery = _ems_battery_power_w(data)
+        battery = _normalized_ems_battery_power_w(data)
         if data.get(DATA_EMS_HEARTBEAT) is not None:
             load = max(solar + battery + grid, 0.0)
             return solar, grid, load, battery

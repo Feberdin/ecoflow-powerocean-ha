@@ -551,6 +551,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.13` | Optionale Stromausfall-Benachrichtigung inklusive Testbutton ergänzt | Handy-Nachricht senden, wenn Backup Helpers Stromausfall und Batterieversorgung erkennen |
 | `v0.4.14` | Veraltete Energy-Stream-Daten werden gegenüber frischeren Batterie-/EMS-Daten erkannt | SOC-Sprünge und Fortschreiben alter Leistungswerte nach App-/Cloud-Lücken vermeiden |
 | `v0.4.15` | Hintergrundaufgaben aus synchronen HA-Callbacks thread-sicher geplant | Home-Assistant-Warnungen und potenzielle Thread-Safety-Probleme vermeiden |
+| `v0.4.16` | EMS-Batterievorzeichen normalisiert, wenn Energy-Stream-Daten veraltet sind | Hausverbrauch und Batterie-Lade-/Entladezähler bei frischen EMS-Fallbackwerten korrekt halten |
 
 ---
 

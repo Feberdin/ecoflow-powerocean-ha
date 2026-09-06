@@ -158,6 +158,36 @@ class BackupHelpersTestCase(unittest.TestCase):
             (3000.0, -1500.0, 1500.0, 0.0),
         )
 
+    def test_power_components_normalize_ems_battery_discharge_sign(self) -> None:
+        older_stream_at = self.now - timedelta(minutes=10)
+        fresher_ems_at = self.now
+        data = {
+            "energy_stream": proto_decoder.EnergyStreamData(
+                load_w=0.0,
+                grid_w=0.0,
+                solar_w=0.0,
+                battery_w=0.0,
+                soc=79,
+            ),
+            "energy_stream_observed_at": older_stream_at,
+            "ems_heartbeat": proto_decoder.EmsHeartbeatData(
+                phase_a=proto_decoder.PhaseData(act_pwr=-170.5),
+                phase_b=proto_decoder.PhaseData(act_pwr=-188.5),
+                phase_c=proto_decoder.PhaseData(act_pwr=-168.7),
+                mppt_strings=[
+                    proto_decoder.MpptStringData(index=1, power_w=0.0),
+                    proto_decoder.MpptStringData(index=2, power_w=0.2),
+                ],
+                battery_power_w=-652.5,
+            ),
+            "ems_heartbeat_observed_at": fresher_ems_at,
+        }
+
+        self.assertEqual(
+            backup_helpers.normalized_power_components(data),
+            (0.2, -527.7, 125.0, 652.5),
+        )
+
     def test_normalize_backup_helper_options_clamps_invalid_values(self) -> None:
         normalized = backup_helpers.normalize_backup_helper_options(
             {
