@@ -420,6 +420,10 @@ class DailyReportTestCase(unittest.TestCase):
             def __init__(self) -> None:
                 self.tasks = []
 
+            def create_task(self, task):
+                self.tasks.append(task)
+                return task
+
             def async_create_task(self, task):
                 self.tasks.append(task)
                 return task
@@ -449,6 +453,47 @@ class DailyReportTestCase(unittest.TestCase):
         asyncio.run(hass.tasks[0])
 
         self.assertTrue(manager.sent)
+
+    def test_sunset_catch_up_uses_thread_safe_task_scheduler(self) -> None:
+        """Synchronous catch-up callbacks must use Home Assistant's safe scheduler."""
+
+        class FakeHass:
+            def __init__(self) -> None:
+                self.tasks = []
+
+            def create_task(self, task):
+                self.tasks.append(task)
+                return task
+
+            def async_create_task(self, task):
+                task.close()
+                raise AssertionError("async_create_task is unsafe from sync callback")
+
+        class FakeEntry:
+            options = {
+                "enable_daily_sunset_report": True,
+                "daily_report_notify_target": "notify.mobile_app",
+                "daily_report_feed_in_tariff_eur_per_kwh": 0.077,
+            }
+
+        class FakeCoordinator:
+            data = None
+
+        class FakeManager(daily_report.DailySunsetReportManager):
+            def __init__(self, hass, entry, coordinator):
+                super().__init__(hass, entry, coordinator)
+                self.sent_due_report = False
+
+            async def async_send_due_sunset_report(self) -> None:
+                self.sent_due_report = True
+
+        hass = FakeHass()
+        manager = FakeManager(hass, FakeEntry(), FakeCoordinator())
+
+        manager._handle_sunset_catch_up(self.start)
+        asyncio.run(hass.tasks[0])
+
+        self.assertTrue(manager.sent_due_report)
 
     def test_sunset_catch_up_detects_only_finished_today_sunset(self) -> None:
         """Catch-up soll nachts vor Sonnenaufgang nicht zu frueh senden."""
