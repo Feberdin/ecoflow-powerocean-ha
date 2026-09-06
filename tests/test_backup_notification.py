@@ -211,6 +211,51 @@ class BackupNotificationTestCase(unittest.TestCase):
 
         self.assertEqual(len(hass.services.calls), 2)
 
+    def test_coordinator_listener_uses_thread_safe_task_scheduler(self) -> None:
+        """Coordinator callbacks must not call async_create_task from sync context."""
+
+        class FakeHass:
+            def __init__(self) -> None:
+                self.tasks = []
+
+            def create_task(self, task):
+                self.tasks.append(task)
+                return task
+
+            def async_create_task(self, task):
+                task.close()
+                raise AssertionError("async_create_task is unsafe from sync callback")
+
+        class FakeEntry:
+            entry_id = "entry"
+            options = {
+                "enable_backup_outage_notification": True,
+                "backup_outage_notify_target": "notify.mobile_app",
+            }
+
+        class FakeCoordinator:
+            backup_evaluation = None
+
+        class FakeManager(backup_notification.BackupOutageNotificationManager):
+            def __init__(self, hass, entry, coordinator):
+                super().__init__(hass, entry, coordinator)
+                self.processed = False
+
+            async def async_process_coordinator_update(
+                self,
+                *,
+                force_save: bool = False,
+            ) -> None:
+                self.processed = True
+
+        hass = FakeHass()
+        manager = FakeManager(hass, FakeEntry(), FakeCoordinator())
+
+        manager._schedule_update_from_coordinator()
+        asyncio.run(hass.tasks[0])
+
+        self.assertTrue(manager.processed)
+
     def test_test_notification_does_not_mark_outage_as_sent(self) -> None:
         class FakeServices:
             def __init__(self) -> None:

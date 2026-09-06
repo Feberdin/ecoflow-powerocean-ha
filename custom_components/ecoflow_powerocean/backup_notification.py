@@ -44,6 +44,7 @@ from .daily_report import (
     async_send_notification_message,
     has_notification_target,
     normalize_notification_target,
+    schedule_home_assistant_task,
 )
 
 if TYPE_CHECKING:
@@ -139,7 +140,10 @@ class BackupOutageNotificationManager:
 
     def _schedule_update_from_coordinator(self) -> None:
         """Startet die async Verarbeitung aus dem Coordinator-Listener heraus."""
-        self.hass.async_create_task(self.async_process_coordinator_update())
+        schedule_home_assistant_task(
+            self.hass,
+            self.async_process_coordinator_update(),
+        )
 
     async def async_process_coordinator_update(
         self,

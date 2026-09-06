@@ -72,6 +72,21 @@ MAX_EXPORT_INTEGRATION_GAP_SECONDS = 30 * 60
 NOTIFY_TARGET_KEYS = ("entity_id", "device_id", "area_id", "label_id")
 
 
+def schedule_home_assistant_task(hass: Any, coroutine: Any) -> Any:
+    """
+    Plant eine Coroutine aus synchronen Home-Assistant-Callbacks.
+
+    Warum:
+        Einige HA-Callbacks koennen ausserhalb des Event-Loop-Kontexts laufen.
+        Home Assistant erwartet dafuer `create_task`; `async_create_task` ist
+        nur im Event Loop sicher.
+    """
+    create_task = getattr(hass, "create_task", None)
+    if callable(create_task):
+        return create_task(coroutine)
+    return hass.async_create_task(coroutine)
+
+
 @dataclass(slots=True)
 class DailyReportState:
     """
@@ -335,7 +350,10 @@ class DailySunsetReportManager:
 
     def _schedule_update_from_coordinator(self) -> None:
         """Startet die async Verarbeitung aus dem Coordinator-Listener heraus."""
-        self.hass.async_create_task(self.async_process_coordinator_update())
+        schedule_home_assistant_task(
+            self.hass,
+            self.async_process_coordinator_update(),
+        )
 
     async def async_process_coordinator_update(self, *, force_save: bool = False) -> None:
         """Übernimmt den aktuellen Coordinator-Stand in den Tages-Akkumulator."""
@@ -553,11 +571,11 @@ class DailySunsetReportManager:
     def _handle_sunset(self, _now: datetime | None = None) -> None:
         """Callback des Event-Helpers; sendet asynchron und blockiert HA nicht."""
         _LOGGER.debug("Tagesbericht: Sunset-Trigger ausgelöst")
-        self.hass.async_create_task(self.async_send_sunset_report())
+        schedule_home_assistant_task(self.hass, self.async_send_sunset_report())
 
     def _handle_sunset_catch_up(self, _now: datetime) -> None:
         """Periodischer Sicherheitscheck fuer verpasste Sunset-Callbacks."""
-        self.hass.async_create_task(self.async_send_due_sunset_report())
+        schedule_home_assistant_task(self.hass, self.async_send_due_sunset_report())
 
     async def async_send_due_sunset_report(self) -> None:
         """Sendet nachtraeglich, wenn der heutige Sonnenuntergang schon vorbei ist."""
