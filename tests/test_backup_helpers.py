@@ -57,6 +57,10 @@ if PACKAGE_NAME not in sys.modules:
     sys.modules[PACKAGE_NAME] = integration_pkg
 
 _load_module(f"{PACKAGE_NAME}.const", MODULE_DIR / "const.py")
+proto_decoder = _load_module(
+    f"{PACKAGE_NAME}.proto_decoder",
+    MODULE_DIR / "proto_decoder.py",
+)
 backup_helpers = _load_module(
     f"{PACKAGE_NAME}.backup_helpers",
     MODULE_DIR / "backup_helpers.py",
@@ -100,6 +104,58 @@ class BackupHelpersTestCase(unittest.TestCase):
             solar_power_w=solar_w,
             battery_power_w=battery_w,
             grid_frequency_hz=frequency_hz,
+        )
+
+    def test_total_soc_uses_newer_battery_packs_when_energy_stream_is_stale(self) -> None:
+        older_stream_at = self.now - timedelta(minutes=10)
+        fresher_batteries_at = self.now
+        data = {
+            "energy_stream": proto_decoder.EnergyStreamData(
+                load_w=1000.0,
+                grid_w=-100.0,
+                solar_w=900.0,
+                battery_w=0.0,
+                soc=80,
+            ),
+            "energy_stream_observed_at": older_stream_at,
+            "batteries": {
+                1: proto_decoder.BatteryPackData(pack_index=1, soc=100),
+                2: proto_decoder.BatteryPackData(pack_index=2, soc=100),
+                3: proto_decoder.BatteryPackData(pack_index=3, soc=100),
+            },
+            "batteries_observed_at": fresher_batteries_at,
+        }
+
+        self.assertEqual(backup_helpers.total_soc_percent(data), 100)
+
+    def test_power_components_use_newer_ems_values_when_energy_stream_is_stale(self) -> None:
+        older_stream_at = self.now - timedelta(minutes=10)
+        fresher_ems_at = self.now
+        data = {
+            "energy_stream": proto_decoder.EnergyStreamData(
+                load_w=1000.0,
+                grid_w=-100.0,
+                solar_w=900.0,
+                battery_w=0.0,
+                soc=80,
+            ),
+            "energy_stream_observed_at": older_stream_at,
+            "ems_heartbeat": proto_decoder.EmsHeartbeatData(
+                phase_a=proto_decoder.PhaseData(act_pwr=-500.0),
+                phase_b=proto_decoder.PhaseData(act_pwr=-500.0),
+                phase_c=proto_decoder.PhaseData(act_pwr=-500.0),
+                mppt_strings=[
+                    proto_decoder.MpptStringData(index=1, power_w=1200.0),
+                    proto_decoder.MpptStringData(index=2, power_w=1800.0),
+                ],
+                battery_power_w=0.0,
+            ),
+            "ems_heartbeat_observed_at": fresher_ems_at,
+        }
+
+        self.assertEqual(
+            backup_helpers.normalized_power_components(data),
+            (3000.0, -1500.0, 1500.0, 0.0),
         )
 
     def test_normalize_backup_helper_options_clamps_invalid_values(self) -> None:

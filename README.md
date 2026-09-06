@@ -549,6 +549,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.11` | Testbutton sendet bei fehlendem Vortag einen Hinweis statt HA-Fehler | Erste Nutzung nach Update verständlich machen |
 | `v0.4.12` | Sunset-Callback fuer Home-Assistant-Signatur korrigiert, Catch-up und Statistik-Sensoren ergänzt | Täglichen Bericht zuverlässig auslösen und Langzeitwerte sichtbar machen |
 | `v0.4.13` | Optionale Stromausfall-Benachrichtigung inklusive Testbutton ergänzt | Handy-Nachricht senden, wenn Backup Helpers Stromausfall und Batterieversorgung erkennen |
+| `v0.4.14` | Veraltete Energy-Stream-Daten werden gegenüber frischeren Batterie-/EMS-Daten erkannt | SOC-Sprünge und Fortschreiben alter Leistungswerte nach App-/Cloud-Lücken vermeiden |
 
 ---
 

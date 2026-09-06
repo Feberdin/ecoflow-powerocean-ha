@@ -47,8 +47,11 @@ from .const import (
     CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     DATA_BATTERIES,
+    DATA_BATTERIES_OBSERVED_AT,
+    DATA_EMS_HEARTBEAT_OBSERVED_AT,
     DATA_EMS_HEARTBEAT,
     DATA_ENERGY_STREAM,
+    DATA_ENERGY_STREAM_OBSERVED_AT,
     DEFAULT_BACKUP_CRITICAL_RUNTIME_MINUTES,
     DEFAULT_BACKUP_RESERVED_SOC_PERCENT,
     DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
@@ -67,6 +70,9 @@ from .const import (
 GRID_SIGN_DEADBAND_W = 20.0
 # Ein Vorzeichenwechsel wird nur akzeptiert, wenn die Bilanz spürbar besser wird.
 MIN_SIGN_FLIP_IMPROVEMENT_W = 20.0
+# Wenn der Energy-Stream länger hinter den anderen MQTT-Quellen herhinkt,
+# verwenden abgeleitete Sensoren lieber frischere EMS-/Batterie-Daten.
+ENERGY_STREAM_STALE_AFTER_SECONDS = 120.0
 
 # Outage-Erkennung bewusst konservativ:
 # - Hauslast muss spürbar vorhanden sein
@@ -278,6 +284,57 @@ def _ems_battery_power_w(data: Mapping[str, Any]) -> float:
     return float(ems.battery_power_w)
 
 
+def _coerce_observed_at(value: Any) -> datetime | None:
+    """Normalisiert gespeicherte Zeitstempel aus Coordinator-Daten."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _latest_observed_at(data: Mapping[str, Any], keys: Sequence[str]) -> datetime | None:
+    """Liefert den neuesten gültigen Zeitstempel für die angegebenen Datenquellen."""
+    timestamps = [
+        observed_at
+        for key in keys
+        if (observed_at := _coerce_observed_at(data.get(key))) is not None
+    ]
+    return max(timestamps) if timestamps else None
+
+
+def _energy_stream_is_stale(data: Mapping[str, Any]) -> bool:
+    """
+    Erkennt einen Energy-Stream, der hinter Batterie/EMS zurückgefallen ist.
+
+    Beispiel:
+        Energy-Stream: 10:00 mit SOC 80 %
+        Batterien:     10:10 mit SOC 100 %
+        Ergebnis:      Energy-Stream gilt als stale und wird nicht bevorzugt.
+    """
+    stream_observed_at = _coerce_observed_at(data.get(DATA_ENERGY_STREAM_OBSERVED_AT))
+    if stream_observed_at is None:
+        return False
+
+    freshest_peer = _latest_observed_at(
+        data,
+        (
+            DATA_BATTERIES_OBSERVED_AT,
+            DATA_EMS_HEARTBEAT_OBSERVED_AT,
+        ),
+    )
+    if freshest_peer is None:
+        return False
+
+    return (
+        freshest_peer - stream_observed_at
+    ).total_seconds() > ENERGY_STREAM_STALE_AFTER_SECONDS
+
+
 def normalized_power_components(data: Mapping[str, Any]) -> tuple[float, float, float, float]:
     """
     Liefert normalisierte Leistungswerte als `(solar, grid, load, battery)`.
@@ -289,12 +346,15 @@ def normalized_power_components(data: Mapping[str, Any]) -> tuple[float, float, 
     """
 
     stream = data.get(DATA_ENERGY_STREAM)
-    if stream is None:
+    if stream is None or _energy_stream_is_stale(data):
         solar = _ems_solar_power_w(data)
         grid = _ems_grid_power_w(data)
         battery = _ems_battery_power_w(data)
-        load = solar + battery + grid
-        return solar, grid, load, battery
+        if data.get(DATA_EMS_HEARTBEAT) is not None:
+            load = max(solar + battery + grid, 0.0)
+            return solar, grid, load, battery
+        if stream is None:
+            return solar, grid, solar + battery + grid, battery
 
     solar = float(stream.solar_w)
     load = float(stream.load_w)
@@ -339,17 +399,22 @@ def battery_power_w(data: Mapping[str, Any]) -> float:
 def total_soc_percent(data: Mapping[str, Any]) -> int | None:
     """Gesamt-SOC bevorzugt aus ENERGY_STREAM, sonst Mittelwert aller Packs."""
     stream = data.get(DATA_ENERGY_STREAM)
+    stream_soc: int | None = None
     if stream is not None:
         try:
             stream_soc = int(getattr(stream, "soc", 0))
         except (TypeError, ValueError):
-            stream_soc = 0
-        if 0 <= stream_soc <= 100:
+            stream_soc = None
+        if (
+            stream_soc is not None
+            and 0 <= stream_soc <= 100
+            and not _energy_stream_is_stale(data)
+        ):
             return stream_soc
 
     batteries = data.get(DATA_BATTERIES, {})
     if not batteries:
-        return None
+        return stream_soc if stream_soc is not None and 0 <= stream_soc <= 100 else None
     return int(sum(pack.soc for pack in batteries.values()) / len(batteries))
 
 

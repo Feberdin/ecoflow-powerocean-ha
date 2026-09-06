@@ -202,5 +202,14 @@ DATA_ENERGY_STREAM = "energy_stream"
 DATA_EMS_HEARTBEAT = "ems_heartbeat"
 """Schlüssel im Coordinator-Datensatz für JTS1_EMS_HEARTBEAT Daten (3-Phasen, MPPT)."""
 
+DATA_BATTERIES_OBSERVED_AT = "batteries_observed_at"
+"""UTC-Zeitpunkt der letzten Batterie-Pack-Nachricht."""
+
+DATA_ENERGY_STREAM_OBSERVED_AT = "energy_stream_observed_at"
+"""UTC-Zeitpunkt der letzten Energy-Stream-Nachricht."""
+
+DATA_EMS_HEARTBEAT_OBSERVED_AT = "ems_heartbeat_observed_at"
+"""UTC-Zeitpunkt der letzten EMS-Heartbeat-Nachricht."""
+
 MAX_BATTERY_PACKS = 9
 """Maximale Anzahl unterstützter Batterie-Packs (lt. EcoFlow Spezifikation)."""

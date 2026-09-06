@@ -72,8 +72,11 @@ from .const import (
     CMD_ID_ENERGY_STREAM,
     CONF_SERIAL_NUMBER,
     DATA_BATTERIES,
+    DATA_BATTERIES_OBSERVED_AT,
+    DATA_EMS_HEARTBEAT_OBSERVED_AT,
     DATA_EMS_HEARTBEAT,
     DATA_ENERGY_STREAM,
+    DATA_ENERGY_STREAM_OBSERVED_AT,
     DOMAIN,
     GAP_RECONCILIATION_MAX_SECONDS,
     GAP_RECONCILIATION_MIN_SECONDS,
@@ -115,6 +118,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name=f"{DOMAIN}_{entry.data[CONF_SERIAL_NUMBER]}",
             update_interval=timedelta(minutes=1),
+            always_update=False,
         )
 
         self._entry = entry
@@ -172,6 +176,9 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             DATA_BATTERIES: {},
             DATA_ENERGY_STREAM: None,
             DATA_EMS_HEARTBEAT: None,
+            DATA_BATTERIES_OBSERVED_AT: None,
+            DATA_ENERGY_STREAM_OBSERVED_AT: None,
+            DATA_EMS_HEARTBEAT_OBSERVED_AT: None,
         }
 
     # ── Öffentliche Setup-Methode ─────────────────────────────────────────────
@@ -404,23 +411,43 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not battery_packs and energy_stream is None and ems_heartbeat is None:
             return
 
-        # Vorhandene Daten aktualisieren (nicht überschreiben)
+        # Vorhandene Daten aktualisieren (nicht überschreiben). Die separaten
+        # Zeitstempel verhindern, dass ein alter Energy-Stream frischere
+        # Batterie- oder EMS-Werte überlagert.
+        observed_at = dt_util.utcnow()
         with self._mqtt_lock:
-            self._last_message_at = dt_util.utcnow()
+            self._last_message_at = observed_at
             new_batteries = dict(self.data.get(DATA_BATTERIES, {}))
             for pack in battery_packs:
                 new_batteries[pack.pack_index] = pack
 
             new_energy = energy_stream if energy_stream is not None else self.data.get(DATA_ENERGY_STREAM)
             new_ems = ems_heartbeat if ems_heartbeat is not None else self.data.get(DATA_EMS_HEARTBEAT)
+            batteries_observed_at = (
+                observed_at
+                if battery_packs
+                else self.data.get(DATA_BATTERIES_OBSERVED_AT)
+            )
+            energy_stream_observed_at = (
+                observed_at
+                if energy_stream is not None
+                else self.data.get(DATA_ENERGY_STREAM_OBSERVED_AT)
+            )
+            ems_heartbeat_observed_at = (
+                observed_at
+                if ems_heartbeat is not None
+                else self.data.get(DATA_EMS_HEARTBEAT_OBSERVED_AT)
+            )
 
             new_data = {
                 DATA_BATTERIES: new_batteries,
                 DATA_ENERGY_STREAM: new_energy,
                 DATA_EMS_HEARTBEAT: new_ems,
+                DATA_BATTERIES_OBSERVED_AT: batteries_observed_at,
+                DATA_ENERGY_STREAM_OBSERVED_AT: energy_stream_observed_at,
+                DATA_EMS_HEARTBEAT_OBSERVED_AT: ems_heartbeat_observed_at,
             }
 
-        observed_at = dt_util.utcnow()
         self.hass.loop.call_soon_threadsafe(
             self._handle_incoming_data, new_data, observed_at
         )
