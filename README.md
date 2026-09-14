@@ -1,3 +1,12 @@
+<p align="center">
+  <a href="docs/data-sharing.md">
+    <img src="docs/images/data-sharing-callout.svg" alt="Datenspende: anonymisierte EcoFlow-PowerOcean-Messdaten freiwillig über GitHub teilen" width="100%">
+  </a>
+</p>
+
+> **Datenspende willkommen:** Wer diese Integration verbessern möchte, kann freiwillig anonymisierte EcoFlow-/PowerOcean-Daten teilen.
+> Anleitung: [docs/data-sharing.md](docs/data-sharing.md) · Direktes GitHub-Issue: [Anonymisierte Messdaten teilen](https://github.com/Feberdin/ecoflow-powerocean-ha/issues/new?template=data_sample.yml&title=%5BDATA%5D%20)
+
 # EcoFlow PowerOcean Plus — Home Assistant Integration
 
 [![Version](https://img.shields.io/github/v/release/Feberdin/ecoflow-powerocean-ha?label=Version&color=blue)](https://github.com/Feberdin/ecoflow-powerocean-ha/releases/latest)
@@ -658,6 +667,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.20` | Optionale System-Power-Reserve-Automatik und anonymisiertes Messdatenformat ergänzt | Akku-Reserve nachts schützen und externe Beobachtungsdaten strukturiert für Analysen einsammeln |
 | `v0.4.21` | Anonymisiertes Messdatenformat auf reichere v2-Snapshots erweitert | Mehr Analyseinformationen teilen, ohne Seriennummern, Tokens, Standort oder vollständige Entity-IDs offenzulegen |
 | `v0.4.22` | Anonymisierten Datenspende-Export auf v3 erweitert | Freiwillig geteilte EcoFlow-Daten breiter erfassen, Monatsstatistiken aufnehmen und die Zweckbindung klar dokumentieren |
+| `v0.4.23` | Datenspende-Hinweis mit Grafik prominent ergänzt | Nutzer direkt oben im Repo zeigen, wo und wie sie anonymisierte Daten teilen können |
 
 ---
 

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Datenspende für EcoFlow PowerOcean</title>
+  <desc id="desc">Anonymisierte EcoFlow PowerOcean Messdaten können freiwillig über das GitHub Issue Anonymisierte Messdaten geteilt werden.</desc>
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-12%" width="116%" height="124%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.20"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="420" rx="0" fill="#f8fafc"/>
+  <rect x="42" y="42" width="1116" height="336" rx="28" fill="url(#panel)" filter="url(#shadow)"/>
+
+  <g transform="translate(90 92)">
+    <circle cx="64" cy="64" r="48" fill="#ecfeff" opacity="0.96"/>
+    <path d="M43 69h42v14H43z" fill="#0f766e"/>
+    <path d="M52 45h24l17 24H36z" fill="#22c55e"/>
+    <path d="M69 36v61" stroke="#0f766e" stroke-width="8" stroke-linecap="round"/>
+    <path d="M53 53h32M46 67h46" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.92"/>
+  </g>
+
+  <text x="210" y="116" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="42" font-weight="800" fill="#ffffff">
+    Datenspende für bessere PowerOcean-Auswertungen
+  </text>
+  <text x="210" y="166" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="25" font-weight="500" fill="#dbeafe">
+    Freiwillig, lokal erzeugt und anonymisiert. Keine Seriennummern, Tokens, E-Mail-Adressen oder Standortdaten.
+  </text>
+
+  <g transform="translate(210 212)">
+    <rect x="0" y="0" width="270" height="58" rx="14" fill="#ffffff"/>
+    <text x="135" y="37" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" fill="#0f766e">
+      1. Anleitung öffnen
+    </text>
+
+    <path d="M294 29h62" stroke="#bfdbfe" stroke-width="7" stroke-linecap="round"/>
+    <path d="M345 17l17 12-17 12" fill="none" stroke="#bfdbfe" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="382" y="0" width="304" height="58" rx="14" fill="#ffffff"/>
+    <text x="534" y="37" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" fill="#1d4ed8">
+      2. JSON erzeugen
+    </text>
+
+    <path d="M710 29h62" stroke="#bfdbfe" stroke-width="7" stroke-linecap="round"/>
+    <path d="M761 17l17 12-17 12" fill="none" stroke="#bfdbfe" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="798" y="0" width="310" height="58" rx="14" fill="#ffffff"/>
+    <text x="953" y="37" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" fill="#0f172a">
+      3. GitHub-Issue posten
+    </text>
+  </g>
+
+  <g transform="translate(210 305)">
+    <rect x="0" y="0" width="410" height="46" rx="23" fill="#ecfeff" opacity="0.96"/>
+    <text x="205" y="30" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#0f766e">
+      docs/data-sharing.md
+    </text>
+
+    <rect x="436" y="0" width="500" height="46" rx="23" fill="#eff6ff" opacity="0.96"/>
+    <text x="686" y="30" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#1d4ed8">
+      Issues → Anonymisierte Messdaten
+    </text>
+  </g>
+</svg>

@@ -1,5 +1,7 @@
 # Anonymisierte Messdaten teilen
 
+![Datenspende für EcoFlow PowerOcean](images/data-sharing-callout.svg)
+
 Dieses Dokument beschreibt ein anonymisiertes JSON-Format, mit dem Nutzer oder
 andere Repos Messpunkte zur EcoFlow-PowerOcean-Auswertung teilen können.
 
