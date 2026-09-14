@@ -166,6 +166,26 @@ class SystemPowerProtocolTestCase(unittest.TestCase):
         assert system_status is not None
         self.assertTrue(system_status.system_power_on)
 
+    def test_partial_system_status_keeps_previous_power_state(self) -> None:
+        previous = proto_decoder.SystemStatusData(
+            system_power_on=True,
+            sys_on_off_machine_stat=0,
+            ems_work_state=7,
+        )
+        update = proto_decoder.SystemStatusData(
+            sys_grid_sta=0,
+            ems_work_state=8,
+        )
+
+        merged = proto_decoder.merge_system_status(previous, update)
+
+        self.assertTrue(merged.system_power_on)
+        self.assertEqual(merged.system_power_state, "on")
+        self.assertEqual(merged.sys_on_off_machine_stat, 0)
+        self.assertEqual(merged.sys_grid_sta, 0)
+        self.assertEqual(merged.ems_work_state, 8)
+        self.assertEqual(merged.ems_work_state_label, "stop")
+
 
 if __name__ == "__main__":
     unittest.main()

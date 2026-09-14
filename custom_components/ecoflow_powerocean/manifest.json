@@ -10,5 +10,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/Feberdin/ecoflow-powerocean-ha/issues",
   "requirements": ["paho-mqtt>=2.1.0"],
-  "version": "0.4.18"
+  "version": "0.4.19"
 }

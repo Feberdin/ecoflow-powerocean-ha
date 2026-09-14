@@ -609,6 +609,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.16` | EMS-Batterievorzeichen normalisiert, wenn Energy-Stream-Daten veraltet sind | Hausverbrauch und Batterie-Lade-/Entladezähler bei frischen EMS-Fallbackwerten korrekt halten |
 | `v0.4.17` | Optionaler System-Power-Schalter und zusätzliche EMS-Statussensoren ergänzt | PowerOcean wie in der EcoFlow App ein-/ausschalten und weitere ausgelesene Endpunkte für Automationen sichtbar machen |
 | `v0.4.18` | Mindestversion von `paho-mqtt` auf `2.1.0` angehoben und GitHub Actions aktualisiert | Security-/Wartungs-PRs auflösen und Node-20-Deprecation-Warnungen in CI vermeiden |
+| `v0.4.19` | Partielle EMS-Statusmeldungen erhalten den zuletzt bekannten System-Power-Status | Verhindert, dass `System-Power-Status` nach einem unvollständigen Status-Telegramm auf `unknown` zurückfällt |
 
 ---
 

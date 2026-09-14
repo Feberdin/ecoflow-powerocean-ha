@@ -295,6 +295,96 @@ class SystemStatusData:
         )
 
 
+def merge_system_status(
+    previous: SystemStatusData | None,
+    update: SystemStatusData,
+) -> SystemStatusData:
+    """
+    Fuehrt partielle EMS-Change-Reports mit dem letzten bekannten Status zusammen.
+
+    Warum:
+        EcoFlow liefert `JTS1_EMS_CHANGE_REPORT` nicht immer mit allen Feldern.
+        Ein Telegramm ohne Feld 10 darf den zuletzt bekannten System-Power-Status
+        nicht wieder auf `unknown` setzen.
+    """
+    if previous is None:
+        return update
+
+    return SystemStatusData(
+        system_power_on=(
+            update.system_power_on
+            if update.system_power_on is not None
+            else previous.system_power_on
+        ),
+        sys_on_off_machine_stat=(
+            update.sys_on_off_machine_stat
+            if update.sys_on_off_machine_stat is not None
+            else previous.sys_on_off_machine_stat
+        ),
+        sys_work_sta=(
+            update.sys_work_sta
+            if update.sys_work_sta is not None
+            else previous.sys_work_sta
+        ),
+        sys_grid_sta=(
+            update.sys_grid_sta
+            if update.sys_grid_sta is not None
+            else previous.sys_grid_sta
+        ),
+        ems_work_mode=(
+            update.ems_work_mode
+            if update.ems_work_mode is not None
+            else previous.ems_work_mode
+        ),
+        ems_work_state=(
+            update.ems_work_state
+            if update.ems_work_state is not None
+            else previous.ems_work_state
+        ),
+        bp_soc=update.bp_soc if update.bp_soc is not None else previous.bp_soc,
+        sys_bat_chg_up_limit=(
+            update.sys_bat_chg_up_limit
+            if update.sys_bat_chg_up_limit is not None
+            else previous.sys_bat_chg_up_limit
+        ),
+        sys_bat_dsg_down_limit=(
+            update.sys_bat_dsg_down_limit
+            if update.sys_bat_dsg_down_limit is not None
+            else previous.sys_bat_dsg_down_limit
+        ),
+        sys_bat_backup_ratio=(
+            update.sys_bat_backup_ratio
+            if update.sys_bat_backup_ratio is not None
+            else previous.sys_bat_backup_ratio
+        ),
+        bp_total_charge_energy_kwh=(
+            update.bp_total_charge_energy_kwh
+            if update.bp_total_charge_energy_kwh is not None
+            else previous.bp_total_charge_energy_kwh
+        ),
+        bp_total_discharge_energy_kwh=(
+            update.bp_total_discharge_energy_kwh
+            if update.bp_total_discharge_energy_kwh is not None
+            else previous.bp_total_discharge_energy_kwh
+        ),
+        ems_feed_mode=(
+            update.ems_feed_mode
+            if update.ems_feed_mode is not None
+            else previous.ems_feed_mode
+        ),
+        ems_feed_ratio=(
+            update.ems_feed_ratio
+            if update.ems_feed_ratio is not None
+            else previous.ems_feed_ratio
+        ),
+        ems_feed_power_w=(
+            update.ems_feed_power_w
+            if update.ems_feed_power_w is not None
+            else previous.ems_feed_power_w
+        ),
+    )
+
+
 # ── Protobuf Wire-Format Decoder ──────────────────────────────────────────────
 
 def _read_varint(data: bytes, pos: int) -> tuple[int, int]:

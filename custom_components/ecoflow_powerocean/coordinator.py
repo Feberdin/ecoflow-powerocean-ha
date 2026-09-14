@@ -101,6 +101,7 @@ from .proto_decoder import (
     EnergyStreamData,
     SystemStatusData,
     decode_mqtt_payload,
+    merge_system_status,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -442,16 +443,21 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         if system_status is not None:
-            self._system_status = system_status
-            if system_status.system_power_on is not None:
-                self._system_power_on = system_status.system_power_on
+            merged_system_status = merge_system_status(
+                self._system_status,
+                system_status,
+            )
+            self._system_status = merged_system_status
+            system_status = merged_system_status
+            if merged_system_status.system_power_on is not None:
+                self._system_power_on = merged_system_status.system_power_on
                 self._system_power_is_real = True
                 _LOGGER.debug(
                     "System-Power-Zustand empfangen: %s (stat=%s, mode=%s, state=%s)",
-                    "AN" if system_status.system_power_on else "AUS",
-                    system_status.sys_on_off_machine_stat,
-                    system_status.ems_work_mode_label,
-                    system_status.ems_work_state_label,
+                    "AN" if merged_system_status.system_power_on else "AUS",
+                    merged_system_status.sys_on_off_machine_stat,
+                    merged_system_status.ems_work_mode_label,
+                    merged_system_status.ems_work_state_label,
                 )
 
         if (
