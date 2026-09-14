@@ -578,7 +578,12 @@ Wenn du Messdaten aus dieser Integration oder aus einem anderen Repo beisteuern
 möchtest, nutze bitte das dokumentierte Format in
 [`docs/data-sharing.md`](docs/data-sharing.md). Das Format enthält Live-Leistung,
 Energiezähler, Batteriepackdaten, Backup-Schätzung, Tagesberichtswerte,
-Systemstatus und anonymisierte Quellenhinweise.
+Systemstatus, anonymisierte EcoFlow-/PowerOcean-Rohzustände und optional
+monatliche Home-Assistant-Langzeitstatistiken.
+
+Das Teilen ist freiwillig. Die Daten werden nicht automatisch hochgeladen und
+sollen ausschließlich zur Verbesserung dieser Integration, der Auswertelogik und
+der Dokumentation verwendet werden.
 
 Bitte niemals Seriennummern, E-Mail-Adressen, Tokens, Cookies oder Standortdaten
 teilen. Für GitHub gibt es zusätzlich die Vorlage „Anonymisierte Messdaten“.
@@ -652,6 +657,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.19` | Partielle EMS-Statusmeldungen erhalten den zuletzt bekannten System-Power-Status | Verhindert, dass `System-Power-Status` nach einem unvollständigen Status-Telegramm auf `unknown` zurückfällt |
 | `v0.4.20` | Optionale System-Power-Reserve-Automatik und anonymisiertes Messdatenformat ergänzt | Akku-Reserve nachts schützen und externe Beobachtungsdaten strukturiert für Analysen einsammeln |
 | `v0.4.21` | Anonymisiertes Messdatenformat auf reichere v2-Snapshots erweitert | Mehr Analyseinformationen teilen, ohne Seriennummern, Tokens, Standort oder vollständige Entity-IDs offenzulegen |
+| `v0.4.22` | Anonymisierten Datenspende-Export auf v3 erweitert | Freiwillig geteilte EcoFlow-Daten breiter erfassen, Monatsstatistiken aufnehmen und die Zweckbindung klar dokumentieren |
 
 ---
 

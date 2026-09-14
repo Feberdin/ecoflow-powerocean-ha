@@ -1,10 +1,19 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "observed_at": "2026-09-14T23:39:10+02:00",
+  "purpose": {
+    "consent": "voluntary_user_supplied",
+    "allowed_use": "improve_ecoflow_powerocean_integration_and_analysis_only",
+    "not_allowed": [
+      "identify_user",
+      "publish_raw_home_assistant_dump",
+      "use_for_advertising_or_tracking"
+    ]
+  },
   "source": {
     "source_id": "anonymous-sample-1",
     "repo": "Feberdin/ecoflow-powerocean-ha",
-    "integration_version": "v0.4.21",
+    "integration_version": "v0.4.22",
     "home_assistant_version": "2026.7.4",
     "device_model": "PowerOcean Plus",
     "battery_packs": 3
@@ -63,6 +72,46 @@
     "power_outage": false,
     "backup_reserve_critical": false
   },
+  "anonymized_entities": [
+    {
+      "domain": "sensor",
+      "suffix": "netz_leistung",
+      "state": -761.6,
+      "attributes": {
+        "device_class": "power",
+        "state_class": "measurement",
+        "unit_of_measurement": "W"
+      }
+    },
+    {
+      "domain": "sensor",
+      "suffix": "private_seriennummer",
+      "state": "<redacted>"
+    },
+    {
+      "domain": "binary_sensor",
+      "suffix": "stromausfall_erkannt",
+      "state": "off"
+    }
+  ],
+  "statistics": {
+    "monthly": {
+      "netz_einspeisung": {
+        "unit_of_measurement": "kWh",
+        "values": [
+          {
+            "period": "2026-08",
+            "sum": 3190.3159
+          },
+          {
+            "period": "2026-09",
+            "sum": 3527.7588,
+            "delta": 337.4429
+          }
+        ]
+      }
+    }
+  },
   "settings": {
     "backup_reserved_soc_percent": 10,
     "system_power_reserve_guard_enabled": true,
@@ -70,12 +119,14 @@
   },
   "privacy": {
     "redaction_level": "entity_id_suffix_only",
+    "state_redaction": "sensitive_values_redacted",
     "removed": [
       "serial_numbers",
       "tokens",
       "email_addresses",
       "full_entity_ids",
-      "locations"
+      "locations",
+      "display_names"
     ]
   },
   "entity_sources": {

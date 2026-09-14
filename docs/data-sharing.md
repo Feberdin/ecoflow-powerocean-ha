@@ -11,6 +11,17 @@ SOC, Energiezähler, Batteriepackdaten, Backup-Schätzung, Tagesberichtswerte
 und Statuswerte. Das Format benötigt keine zusätzliche Abhängigkeit und kann mit
 dem Script `tools/build_anonymized_observation.py` erzeugt werden.
 
+Der Export ist freiwillig. Die Daten werden nicht automatisch hochgeladen. Wer
+sie in einem Issue oder Pull Request teilt, stellt sie ausschließlich zur
+Verbesserung dieser Integration, der Auswertelogik und der Dokumentation bereit.
+Eine Nutzung zur Identifikation, Werbung, Profilbildung oder Veröffentlichung
+roher Home-Assistant-Dumps ist ausdrücklich nicht vorgesehen.
+
+„Alle Daten“ bedeutet in diesem Kontext: alle erkennbaren
+EcoFlow-/PowerOcean-relevanten Home-Assistant-States plus optionale monatliche
+Langzeitstatistiken. Es werden nicht pauschal alle Entitäten aus dem Smart Home
+exportiert.
+
 ## Datenschutz
 
 Bitte niemals diese Daten teilen:
@@ -24,6 +35,14 @@ Bitte niemals diese Daten teilen:
 Stattdessen bitte nur eine anonymisierte Quellen-ID verwenden, z. B.
 `"source_id": "user-issue-12-sample-a"`.
 
+Das Export-Script entfernt oder vermeidet insbesondere:
+
+- vollständige Entity-IDs wie `sensor.garage_...`
+- Anzeigenamen aus `friendly_name`
+- Seriennummern und tokenartige Zeichenketten
+- E-Mail-Adressen
+- Standort- oder Raumpräfixe vor `ecoflow_powerocean...`
+
 ## Format
 
 Siehe Beispiel:
@@ -36,8 +55,9 @@ Die zugehörige JSON-Schema-Datei liegt hier:
 
 Wichtige Felder:
 
-- `schema_version`: aktuell immer `2`
+- `schema_version`: aktuell immer `3`
 - `observed_at`: Zeitpunkt des Messpunkts als ISO-8601-Zeitstempel
+- `purpose`: freiwillige Datenspende und Zweckbindung
 - `source`: anonymisierte Angaben zur Quelle
 - `measurements.power`: aktuelle Live-Leistungswerte
 - `measurements.energy`: Langzeit-Energiezähler
@@ -46,6 +66,9 @@ Wichtige Felder:
 - `measurements.daily_report`: Tagesbericht-Statistiken
 - `measurements.system_limits`: ausgelesene Systemgrenzen
 - `status`: optionale Statuswerte der Integration oder eines Fremdrepos
+- `anonymized_entities`: alle erkennbaren EcoFlow-/PowerOcean-States als
+  anonymisierte Suffixe mit technischen Attributen
+- `statistics.monthly`: optionale Monatswerte aus HA-Langzeitstatistiken
 - `privacy`: welche Redaktionen angewendet wurden
 - `entity_sources`: nur anonymisierte Quellenhinweise, keine vollständigen Entity-IDs
 - `notes`: optionale Freitextnotiz ohne private Daten
@@ -59,7 +82,7 @@ HOMEASSISTANT_TOKEN=... \
 python3 tools/build_anonymized_observation.py \
   --ha-url http://homeassistant.local:8123 \
   --source-id sample-a \
-  --integration-version v0.4.21 \
+  --integration-version v0.4.22 \
   --home-assistant-version 2026.7.4 \
   --battery-packs 3 \
   --backup-reserved-soc-percent 10 \
@@ -80,6 +103,25 @@ python3 tools/build_anonymized_observation.py \
 Das Script entfernt keine Rohdatei und schreibt standardmäßig nichts auf die
 Festplatte. Es gibt das anonymisierte JSON auf stdout aus.
 
+### Export mit Monatsstatistiken
+
+Für Analysen über die letzten Monate sind die Home-Assistant-Langzeitstatistiken
+wertvoller als ein einzelner Snapshot. Wenn dein HA-Token Zugriff auf Recorder-
+Statistiken hat, kannst du diese direkt mit aufnehmen:
+
+```bash
+HOMEASSISTANT_TOKEN=... \
+python3 tools/build_anonymized_observation.py \
+  --ha-url http://homeassistant.local:8123 \
+  --source-id sample-a \
+  --integration-version v0.4.22 \
+  --include-statistics \
+  --statistics-months 12
+```
+
+Dabei werden nur PowerOcean-relevante Statistik-IDs exportiert, wieder nur mit
+anonymisierten Suffixen wie `netz_einspeisung` oder `solar_energie`.
+
 ## Beispiel für andere Repos
 
 Andere Projekte können dasselbe JSON erzeugen und in einem GitHub-Issue
@@ -92,8 +134,13 @@ ist ein vollständiger Snapshot wie in
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "observed_at": "2026-05-29T21:30:00+02:00",
+  "purpose": {
+    "consent": "voluntary_user_supplied",
+    "allowed_use": "improve_ecoflow_powerocean_integration_and_analysis_only",
+    "not_allowed": ["identify_user"]
+  },
   "source": {
     "source_id": "anonymous-sample-1",
     "repo": "example/powerocean-tool"
@@ -111,6 +158,7 @@ ist ein vollständiger Snapshot wie in
   },
   "privacy": {
     "redaction_level": "entity_id_suffix_only",
+    "state_redaction": "sensitive_values_redacted",
     "removed": ["serial_numbers", "tokens", "email_addresses", "full_entity_ids"]
   }
 }

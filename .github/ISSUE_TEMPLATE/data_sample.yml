@@ -10,6 +10,11 @@ body:
         Keine Seriennummern, E-Mail-Adressen, Tokens, Cookies, Passwörter,
         genauen Adressen oder GPS-Daten einfügen.
 
+        Die Daten werden freiwillig geteilt und sollen ausschließlich zur
+        Verbesserung dieser EcoFlow-PowerOcean-Integration, der Auswertelogik und
+        der Dokumentation genutzt werden. Bitte keine rohen Home-Assistant-Dumps
+        hochladen.
+
   - type: input
     id: source
     attributes:
@@ -36,8 +41,17 @@ body:
       render: json
       placeholder: |
         {
-          "schema_version": 2,
+          "schema_version": 3,
           "observed_at": "2026-05-29T21:30:00+02:00",
+          "purpose": {
+            "consent": "voluntary_user_supplied",
+            "allowed_use": "improve_ecoflow_powerocean_integration_and_analysis_only",
+            "not_allowed": [
+              "identify_user",
+              "publish_raw_home_assistant_dump",
+              "use_for_advertising_or_tracking"
+            ]
+          },
           "source": {
             "source_id": "sample-a"
           },
@@ -54,6 +68,7 @@ body:
           },
           "privacy": {
             "redaction_level": "entity_id_suffix_only",
+            "state_redaction": "sensitive_values_redacted",
             "removed": [
               "serial_numbers",
               "tokens",
@@ -73,4 +88,6 @@ body:
         - label: Ich habe Seriennummern, E-Mail-Adressen, Tokens, Cookies, Passwörter und Standortdaten entfernt.
           required: true
         - label: Die Vorzeichen der Leistungswerte sind beschrieben oder entsprechen docs/data-sharing.md.
+          required: true
+        - label: Ich teile die Daten freiwillig und nur zur Verbesserung der Integration, Auswertelogik und Dokumentation.
           required: true

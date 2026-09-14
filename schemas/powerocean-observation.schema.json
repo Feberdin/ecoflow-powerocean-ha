@@ -5,15 +5,18 @@
   "description": "Anonymisierter Messpunkt für EcoFlow PowerOcean Auswertungen.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "observed_at", "source", "measurements", "privacy"],
+  "required": ["schema_version", "observed_at", "purpose", "source", "measurements", "privacy"],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 2
+      "const": 3
     },
     "observed_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "purpose": {
+      "$ref": "#/$defs/purpose"
     },
     "source": {
       "type": "object",
@@ -72,6 +75,16 @@
     "status": {
       "$ref": "#/$defs/status"
     },
+    "anonymized_entities": {
+      "type": "array",
+      "description": "Alle erkennbaren EcoFlow-/PowerOcean-States ohne vollständige Entity-IDs und ohne Anzeigenamen.",
+      "items": {
+        "$ref": "#/$defs/anonymized_entity"
+      }
+    },
+    "statistics": {
+      "$ref": "#/$defs/statistics"
+    },
     "settings": {
       "$ref": "#/$defs/settings"
     },
@@ -83,6 +96,10 @@
         "redaction_level": {
           "type": "string",
           "enum": ["entity_id_suffix_only"]
+        },
+        "state_redaction": {
+          "type": "string",
+          "enum": ["sensitive_values_redacted"]
         },
         "removed": {
           "type": "array",
@@ -115,6 +132,27 @@
     }
   },
   "$defs": {
+    "purpose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consent", "allowed_use", "not_allowed"],
+      "properties": {
+        "consent": {
+          "type": "string",
+          "enum": ["voluntary_user_supplied"]
+        },
+        "allowed_use": {
+          "type": "string",
+          "enum": ["improve_ecoflow_powerocean_integration_and_analysis_only"]
+        },
+        "not_allowed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "number": {
       "type": "number"
     },
@@ -211,6 +249,86 @@
         "backup_active": { "type": "boolean" },
         "power_outage": { "type": "boolean" },
         "backup_reserve_critical": { "type": "boolean" }
+      }
+    },
+    "anonymized_entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "suffix", "state"],
+      "properties": {
+        "domain": {
+          "type": "string",
+          "enum": ["sensor", "binary_sensor", "button", "switch", "update"]
+        },
+        "suffix": {
+          "type": "string",
+          "description": "Nicht-personalisierter Suffix, z. B. netz_leistung."
+        },
+        "state": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" },
+            { "type": "null" }
+          ]
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string" },
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          },
+          "description": "Nur technische Attribute wie unit_of_measurement, device_class, state_class, entity_category oder icon."
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "monthly": {
+          "type": "object",
+          "description": "Optionale monatliche HA-Langzeitstatistiken, anonymisiert nach Suffix.",
+          "additionalProperties": {
+            "$ref": "#/$defs/monthly_statistic"
+          }
+        }
+      }
+    },
+    "monthly_statistic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["values"],
+      "properties": {
+        "unit_of_measurement": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/monthly_statistic_value"
+          }
+        }
+      }
+    },
+    "monthly_statistic_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["period"],
+      "properties": {
+        "period": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}$"
+        },
+        "sum": { "$ref": "#/$defs/number" },
+        "delta": { "$ref": "#/$defs/number" },
+        "mean": { "$ref": "#/$defs/number" },
+        "min": { "$ref": "#/$defs/number" },
+        "max": { "$ref": "#/$defs/number" }
       }
     },
     "settings": {
