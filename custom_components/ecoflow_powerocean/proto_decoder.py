@@ -176,6 +176,125 @@ class EnergyStreamData:
     """Kombinierter Batterie-Ladestand aller Packs in Prozent."""
 
 
+EMS_WORK_MODE_LABELS: dict[int, str] = {
+    0: "selfuse",
+    1: "tou",
+    2: "backup",
+    3: "debug",
+    4: "ac_makeup",
+    5: "drm_mode",
+    6: "remote_sched",
+    7: "standby_mode",
+    8: "soc_calib",
+    9: "timer_mode",
+}
+
+
+EMS_WORK_STATE_LABELS: dict[int, str] = {
+    0: "none",
+    1: "init",
+    2: "idle",
+    3: "startup_by_ext_bp",
+    4: "startup_by_inner_bp",
+    5: "startup_by_pv",
+    6: "startup_by_grid",
+    7: "running",
+    8: "stop",
+    9: "maintain",
+}
+
+
+@dataclass
+class SystemStatusData:
+    """
+    Systemstatus aus JTS1_EMS_CHANGE_REPORT.
+
+    Warum:
+        Diese get_reply-Nachricht enthaelt Statuswerte, die fuer sichere
+        read-only Funktionen und den optionalen System-Power-Schalter wichtig
+        sind. Schreibbefehle werden daraus nicht abgeleitet.
+
+    Wichtige Feldnummern:
+        1=sys_work_sta, 2=sys_grid_sta, 3=ems_work_mode,
+        10=sys_on_off_machine_stat, 11=sys_bat_chg_up_limit,
+        12=sys_bat_dsg_down_limit, 13/14=Batterie-Gesamtenergie,
+        15=sys_bat_backup_ratio, 16/17/18=Feed-Mode/-Ratio/-Power,
+        205=ems_work_state.
+    """
+
+    system_power_on: bool | None = None
+    """True = System an, False = System aus, None = Status unbekannt."""
+
+    sys_on_off_machine_stat: int | None = None
+    """Rohwert Feld 10: empirisch 0 = an, 1 = aus."""
+
+    sys_work_sta: int | None = None
+    """Rohwert Feld 1."""
+
+    sys_grid_sta: int | None = None
+    """Rohwert Feld 2."""
+
+    ems_work_mode: int | None = None
+    """Rohwert Feld 3, siehe EMS_WORK_MODE_LABELS."""
+
+    ems_work_state: int | None = None
+    """Rohwert Feld 205, siehe EMS_WORK_STATE_LABELS."""
+
+    bp_soc: int | None = None
+    """Batterie-SOC aus dem Change-Report."""
+
+    sys_bat_chg_up_limit: int | None = None
+    """Ladeobergrenze in Prozent."""
+
+    sys_bat_dsg_down_limit: int | None = None
+    """Entladeuntergrenze in Prozent."""
+
+    sys_bat_backup_ratio: int | None = None
+    """Backup-Reserve/Ratio in Prozent."""
+
+    bp_total_charge_energy_kwh: float | None = None
+    """Kumulierte Batterie-Ladeenergie in kWh."""
+
+    bp_total_discharge_energy_kwh: float | None = None
+    """Kumulierte Batterie-Entladeenergie in kWh."""
+
+    ems_feed_mode: int | None = None
+    """Rohwert Feld 16."""
+
+    ems_feed_ratio: int | None = None
+    """Einspeise-/Feed-Ratio in Prozent."""
+
+    ems_feed_power_w: int | None = None
+    """Einspeise-/Feed-Leistung in Watt."""
+
+    @property
+    def system_power_state(self) -> str:
+        """Lesbarer System-Power-Zustand."""
+        if self.system_power_on is None:
+            return "unknown"
+        return "on" if self.system_power_on else "off"
+
+    @property
+    def ems_work_mode_label(self) -> str | None:
+        """Lesbare Beschriftung des EMS-Arbeitsmodus."""
+        if self.ems_work_mode is None:
+            return None
+        return EMS_WORK_MODE_LABELS.get(
+            self.ems_work_mode,
+            f"unknown_{self.ems_work_mode}",
+        )
+
+    @property
+    def ems_work_state_label(self) -> str | None:
+        """Lesbare Beschriftung des EMS-Arbeitszustands."""
+        if self.ems_work_state is None:
+            return None
+        return EMS_WORK_STATE_LABELS.get(
+            self.ems_work_state,
+            f"unknown_{self.ems_work_state}",
+        )
+
+
 # ── Protobuf Wire-Format Decoder ──────────────────────────────────────────────
 
 def _read_varint(data: bytes, pos: int) -> tuple[int, int]:
@@ -284,6 +403,28 @@ def _get_int(fields: dict, field_num: int, default: int = 0) -> int:
         except (TypeError, ValueError):
             pass
     return default
+
+
+def _get_optional_int(fields: dict, field_num: int) -> int | None:
+    """Gibt den ersten Integer-Wert eines Feldes zurueck, oder None."""
+    if field_num not in fields:
+        return None
+    try:
+        return int(fields[field_num][0])
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _get_optional_scaled_kwh(
+    fields: dict,
+    field_num: int,
+    multiplier: float = 0.001,
+) -> float | None:
+    """Liest einen Integer-Energiezaehler und skaliert ihn nach kWh."""
+    value = _get_optional_int(fields, field_num)
+    if value is None:
+        return None
+    return value * multiplier
 
 
 def _get_bytes(fields: dict, field_num: int) -> bytes:
@@ -492,11 +633,54 @@ def _decode_energy_stream(pdata: bytes) -> EnergyStreamData | None:
         return None
 
 
+def _decode_ems_change_report(pdata: bytes) -> SystemStatusData | None:
+    """
+    Dekodiert JTS1_EMS_CHANGE_REPORT und extrahiert sichere Statusfelder.
+
+    Beispiel:
+        Feld 10 = 1 ergibt `system_power_on=False`.
+        Feld 10 = 0 ergibt `system_power_on=True`.
+    """
+    try:
+        f = _decode_fields(pdata)
+        stat = _get_optional_int(f, 10)
+        system_power_on = None if stat is None else stat == 0
+
+        if not f:
+            return None
+
+        return SystemStatusData(
+            system_power_on=system_power_on,
+            sys_on_off_machine_stat=stat,
+            sys_work_sta=_get_optional_int(f, 1),
+            sys_grid_sta=_get_optional_int(f, 2),
+            ems_work_mode=_get_optional_int(f, 3),
+            ems_work_state=_get_optional_int(f, 205),
+            bp_soc=_get_optional_int(f, 7),
+            sys_bat_chg_up_limit=_get_optional_int(f, 11),
+            sys_bat_dsg_down_limit=_get_optional_int(f, 12),
+            bp_total_charge_energy_kwh=_get_optional_scaled_kwh(f, 13),
+            bp_total_discharge_energy_kwh=_get_optional_scaled_kwh(f, 14),
+            sys_bat_backup_ratio=_get_optional_int(f, 15),
+            ems_feed_mode=_get_optional_int(f, 16),
+            ems_feed_ratio=_get_optional_int(f, 17),
+            ems_feed_power_w=_get_optional_int(f, 18),
+        )
+    except Exception as exc:
+        _LOGGER.debug("Fehler beim Dekodieren von EMS_CHANGE_REPORT: %s", exc)
+        return None
+
+
 # ── Haupt-Einstiegspunkt ──────────────────────────────────────────────────────
 
 def decode_mqtt_payload(
     raw: bytes,
-) -> tuple[list[BatteryPackData], EnergyStreamData | None, EmsHeartbeatData | None]:
+) -> tuple[
+    list[BatteryPackData],
+    EnergyStreamData | None,
+    EmsHeartbeatData | None,
+    SystemStatusData | None,
+]:
     """
     Dekodiert eine rohe MQTT-Payload vom Topic /app/device/property/{SN}.
 
@@ -515,10 +699,12 @@ def decode_mqtt_payload(
         - Liste erkannter BatteryPackData-Objekte (kann mehrere Packs enthalten)
         - EnergyStreamData oder None (falls nicht in dieser Nachricht enthalten)
         - EmsHeartbeatData oder None (falls nicht in dieser Nachricht enthalten)
+        - SystemStatusData oder None (falls kein EMS-Change-Report enthalten ist)
     """
     battery_packs: list[BatteryPackData] = []
     energy_stream: EnergyStreamData | None = None
     ems_heartbeat: EmsHeartbeatData | None = None
+    system_status: SystemStatusData | None = None
 
     try:
         # Äußeres Envelope: HeaderMessage = { repeated Header header = 1; }
@@ -526,7 +712,7 @@ def decode_mqtt_payload(
         headers_raw = outer.get(1, [])
     except Exception as exc:
         _LOGGER.error("Fehler beim Parsen des MQTT-Envelopes: %s", exc)
-        return [], None, None
+        return [], None, None, None
 
     for raw_header in headers_raw:
         if not isinstance(raw_header, (bytes, bytearray)):
@@ -563,8 +749,17 @@ def decode_mqtt_payload(
                 # JTS1_ENERGY_STREAM_REPORT — Energiefluss
                 energy_stream = _decode_energy_stream(pdata)
 
+            elif cmd_func == 96 and cmd_id in (8, 17):
+                # JTS1_EMS_CHANGE_REPORT — Status-/Konfigurationswerte.
+                # In App-Mitschnitten wurde cmdId 17 beobachtet, in externen
+                # Proto-Mappings cmdId 8. Beide Varianten werden read-only
+                # dekodiert; unbekannte Felder bleiben ignoriert.
+                status = _decode_ems_change_report(pdata)
+                if status is not None:
+                    system_status = status
+
         except Exception as exc:
             _LOGGER.debug("Fehler beim Verarbeiten eines Headers: %s", exc)
             continue
 
-    return battery_packs, energy_stream, ems_heartbeat
+    return battery_packs, energy_stream, ems_heartbeat, system_status

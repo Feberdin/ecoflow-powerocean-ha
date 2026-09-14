@@ -77,6 +77,7 @@ from .const import (
     DATA_EMS_HEARTBEAT,
     DATA_ENERGY_STREAM,
     DATA_ENERGY_STREAM_OBSERVED_AT,
+    DATA_SYSTEM_STATUS,
     DOMAIN,
     GAP_RECONCILIATION_MAX_SECONDS,
     GAP_RECONCILIATION_MIN_SECONDS,
@@ -86,8 +87,21 @@ from .const import (
     MQTT_RECONNECT_DELAY,
     TOPIC_DEVICE_PROPERTY,
     TOPIC_GET,
+    TOPIC_GET_REPLY,
+    TOPIC_SET,
 )
-from .proto_decoder import BatteryPackData, EmsHeartbeatData, EnergyStreamData, decode_mqtt_payload
+from .command_encoder import (
+    SeqGenerator,
+    build_power_command,
+    build_property_get_request,
+)
+from .proto_decoder import (
+    BatteryPackData,
+    EmsHeartbeatData,
+    EnergyStreamData,
+    SystemStatusData,
+    decode_mqtt_payload,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,6 +151,10 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._mqtt_connected: bool = False
         self._mqtt_lock = threading.Lock()
         self._last_message_at: datetime | None = None
+        self._seq = SeqGenerator()
+        self._system_power_on: bool | None = None
+        self._system_power_is_real: bool = False
+        self._system_status: SystemStatusData | None = None
 
         # Gap-Reconciliation:
         # Erfasst Verbindungsunterbrechungen und stellt Metadaten für die
@@ -176,6 +194,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             DATA_BATTERIES: {},
             DATA_ENERGY_STREAM: None,
             DATA_EMS_HEARTBEAT: None,
+            DATA_SYSTEM_STATUS: None,
             DATA_BATTERIES_OBSERVED_AT: None,
             DATA_ENERGY_STREAM_OBSERVED_AT: None,
             DATA_EMS_HEARTBEAT_OBSERVED_AT: None,
@@ -377,8 +396,20 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     )
             topic = TOPIC_DEVICE_PROPERTY.format(sn=self.serial_number)
             client.subscribe(topic, qos=1)
-            _LOGGER.info("MQTT verbunden, abonniere Topic: %s", topic)
-            self._send_get_request()
+            if self._user_id:
+                reply_topic = TOPIC_GET_REPLY.format(
+                    user_id=self._user_id,
+                    sn=self.serial_number,
+                )
+                client.subscribe(reply_topic, qos=1)
+                _LOGGER.info(
+                    "MQTT verbunden, abonniere Topics: %s, %s",
+                    topic,
+                    reply_topic,
+                )
+            else:
+                _LOGGER.info("MQTT verbunden, abonniere Topic: %s", topic)
+            self._send_property_get()
         else:
             _LOGGER.error("MQTT-Verbindung fehlgeschlagen, Code: %s", reason_code)
 
@@ -403,12 +434,32 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         Das Routing zu HA erfolgt thread-sicher über hass.loop.call_soon_threadsafe().
         """
         try:
-            battery_packs, energy_stream, ems_heartbeat = decode_mqtt_payload(msg.payload)
+            battery_packs, energy_stream, ems_heartbeat, system_status = (
+                decode_mqtt_payload(msg.payload)
+            )
         except Exception as exc:
             _LOGGER.debug("Fehler beim Dekodieren der MQTT-Payload: %s", exc)
             return
 
-        if not battery_packs and energy_stream is None and ems_heartbeat is None:
+        if system_status is not None:
+            self._system_status = system_status
+            if system_status.system_power_on is not None:
+                self._system_power_on = system_status.system_power_on
+                self._system_power_is_real = True
+                _LOGGER.debug(
+                    "System-Power-Zustand empfangen: %s (stat=%s, mode=%s, state=%s)",
+                    "AN" if system_status.system_power_on else "AUS",
+                    system_status.sys_on_off_machine_stat,
+                    system_status.ems_work_mode_label,
+                    system_status.ems_work_state_label,
+                )
+
+        if (
+            not battery_packs
+            and energy_stream is None
+            and ems_heartbeat is None
+            and system_status is None
+        ):
             return
 
         # Vorhandene Daten aktualisieren (nicht überschreiben). Die separaten
@@ -423,6 +474,11 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             new_energy = energy_stream if energy_stream is not None else self.data.get(DATA_ENERGY_STREAM)
             new_ems = ems_heartbeat if ems_heartbeat is not None else self.data.get(DATA_EMS_HEARTBEAT)
+            new_system_status = (
+                system_status
+                if system_status is not None
+                else self.data.get(DATA_SYSTEM_STATUS)
+            )
             batteries_observed_at = (
                 observed_at
                 if battery_packs
@@ -443,6 +499,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 DATA_BATTERIES: new_batteries,
                 DATA_ENERGY_STREAM: new_energy,
                 DATA_EMS_HEARTBEAT: new_ems,
+                DATA_SYSTEM_STATUS: new_system_status,
                 DATA_BATTERIES_OBSERVED_AT: batteries_observed_at,
                 DATA_ENERGY_STREAM_OBSERVED_AT: energy_stream_observed_at,
                 DATA_EMS_HEARTBEAT_OBSERVED_AT: ems_heartbeat_observed_at,
@@ -454,27 +511,90 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ── GET-Anfrage ───────────────────────────────────────────────────────────
 
-    def _send_get_request(self) -> None:
+    def _send_property_get(self) -> None:
         """
-        Sendet eine GET-Anfrage über MQTT, um sofortige Datenlieferung auszulösen.
+        Sendet GET-Anfragen über MQTT.
 
-        Das Gerät antwortet mit einem vollständigen Statuspaket auf dem
-        /app/device/property/{SN} Topic (und ggf. auf get_reply).
+        Warum:
+            Die bestehende JSON-GET-Anfrage bleibt erhalten, damit der bisherige
+            Datenpfad fuer normale Sensorwerte unveraendert angestossen wird.
+            Zusaetzlich liefert die Protobuf-GET-Anfrage auf `get_reply`
+            Systemstatuswerte wie `sys_on_off_machine_stat`.
         """
-        if not self._mqtt_client or not self._mqtt_connected:
+        if not self._mqtt_client or not self._mqtt_connected or not self._user_id:
             return
-        payload = json.dumps({
+        topic = TOPIC_GET.format(user_id=self._user_id, sn=self.serial_number)
+
+        legacy_payload = json.dumps({
             "version": "1.0",
             "moduleType": 0,
             "operateType": "get",
             "params": {},
         })
-        topic = TOPIC_GET.format(user_id=self._user_id, sn=self.serial_number)
+        protobuf_payload = build_property_get_request(self._seq.next())
+
         try:
-            self._mqtt_client.publish(topic, payload, qos=1)
-            _LOGGER.debug("GET-Anfrage gesendet an %s", topic)
+            self._mqtt_client.publish(topic, legacy_payload, qos=1)
+            self._mqtt_client.publish(topic, protobuf_payload, qos=1)
+            _LOGGER.debug("JSON- und Protobuf-GET-Anfrage gesendet an %s", topic)
         except Exception as exc:
             _LOGGER.warning("GET-Anfrage fehlgeschlagen: %s", exc)
+
+    # ── SET-Befehl: System AN/AUS ─────────────────────────────────────────────
+
+    @property
+    def is_mqtt_connected(self) -> bool:
+        """True, wenn die MQTT-Verbindung zum EcoFlow-Broker steht."""
+        return self._mqtt_connected
+
+    @property
+    def system_power_on(self) -> bool | None:
+        """Bester bekannter System-Power-Zustand."""
+        return self._system_power_on
+
+    @property
+    def system_power_is_real(self) -> bool:
+        """True, wenn `system_power_on` aus Geraetestatus statt Optimismus stammt."""
+        return self._system_power_is_real
+
+    @property
+    def system_status(self) -> SystemStatusData | None:
+        """Letzter dekodierter Systemstatus."""
+        return self._system_status
+
+    def _send_power_command(self, turn_on: bool) -> None:
+        """
+        Publiziert den belegten System-AN/AUS-Befehl ueber MQTT.
+
+        Raises:
+            RuntimeError: Wenn MQTT/User-ID fehlen oder publish() fehlschlaegt.
+        """
+        if not self._mqtt_client or not self._mqtt_connected:
+            raise RuntimeError("MQTT nicht verbunden - Schaltbefehl nicht moeglich")
+        if not self._user_id:
+            raise RuntimeError("EcoFlow User-ID unbekannt - Schaltbefehl nicht moeglich")
+
+        payload = build_power_command(
+            self.serial_number,
+            self._seq.next(),
+            turn_on,
+        )
+        topic = TOPIC_SET.format(user_id=self._user_id, sn=self.serial_number)
+        result = self._mqtt_client.publish(topic, payload, qos=1)
+        if getattr(result, "rc", 0) != 0:
+            raise RuntimeError(f"MQTT-Publish fehlgeschlagen (rc={result.rc})")
+
+        self._system_power_on = turn_on
+        self._system_power_is_real = False
+        _LOGGER.info(
+            "System-Power-Befehl gesendet: %s",
+            "AN" if turn_on else "AUS",
+        )
+        self._send_property_get()
+
+    async def async_set_system_power(self, turn_on: bool) -> None:
+        """Schaltet das PowerOcean-System ein oder aus."""
+        await self.hass.async_add_executor_job(self._send_power_command, turn_on)
 
     # ── DataUpdateCoordinator Interface ───────────────────────────────────────
 
@@ -500,7 +620,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # GET-Anfrage senden (löst sofortige Geräteantwort aus)
         if self._mqtt_connected:
-            await self.hass.async_add_executor_job(self._send_get_request)
+            await self.hass.async_add_executor_job(self._send_property_get)
 
         return self.data
 

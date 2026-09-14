@@ -37,6 +37,7 @@
         "data": {
           "num_battery_packs": "Anzahl Batterie-Packs",
           "debug_mode": "Debug-Modus aktivieren",
+          "enable_system_power_switch": "System-Power-Schalter aktivieren",
           "enable_daily_sunset_report": "Täglichen Sonnenuntergangsbericht aktivieren",
           "daily_report_notify_target": "Benachrichtigungsziel",
           "daily_report_feed_in_tariff_eur_per_kwh": "Einspeisevergütung (€/kWh)",
@@ -52,6 +53,7 @@
         "data_description": {
           "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen.",
           "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen.",
+          "enable_system_power_switch": "Legt einen optionalen Schalter an, der den PowerOcean wie in der EcoFlow App ein- oder ausschaltet. Beim Ausschalten stoppt die Produktion; Einschalten kann 1–2 Minuten dauern.",
           "enable_daily_sunset_report": "Sendet bei Sonnenuntergang einen Tagesbericht mit Einspeisung, berechneter Vergütung und Akku-100%-Dauer.",
           "daily_report_notify_target": "Notify-Entität, an die der Tagesbericht gesendet wird. Sie muss gesetzt sein, wenn der Bericht aktiviert ist.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Wird zur Berechnung des Tageswerts verwendet. Beispiel aus der Westnetz-Abrechnung: 0,077 €/kWh. Eingabe mit Komma oder Punkt ist möglich.",
@@ -218,6 +220,42 @@
       "grid_export_energy": {
         "name": "Netz-Einspeisung"
       },
+      "system_power_state": {
+        "name": "System-Power-Status"
+      },
+      "system_work_mode": {
+        "name": "System-Arbeitsmodus"
+      },
+      "system_work_state": {
+        "name": "System-Arbeitszustand"
+      },
+      "system_grid_status": {
+        "name": "System-Netzstatus"
+      },
+      "system_battery_charge_limit": {
+        "name": "Batterie-Ladegrenze"
+      },
+      "system_battery_discharge_limit": {
+        "name": "Batterie-Entladegrenze"
+      },
+      "system_backup_ratio": {
+        "name": "Backup-Reserve"
+      },
+      "system_feed_mode": {
+        "name": "Einspeise-Modus"
+      },
+      "system_feed_ratio": {
+        "name": "Einspeise-Ratio"
+      },
+      "system_feed_power": {
+        "name": "Einspeise-Leistung"
+      },
+      "battery_total_charged_energy": {
+        "name": "Batterie gesamt geladen"
+      },
+      "battery_total_discharged_energy": {
+        "name": "Batterie gesamt entladen"
+      },
       "battery_discharge_energy": {
         "name": "Batterie-Entnahme"
       },
@@ -276,6 +314,11 @@
       },
       "backup_outage_notification_test": {
         "name": "Stromausfall-Benachrichtigung testen"
+      }
+    },
+    "switch": {
+      "system_power": {
+        "name": "System-Power"
       }
     }
   }

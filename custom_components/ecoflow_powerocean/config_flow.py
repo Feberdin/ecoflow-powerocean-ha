@@ -58,6 +58,7 @@ from .const import (
     CONF_BACKUP_RESERVED_SOC_PERCENT,
     CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     CONF_DEBUG_MODE,
+    CONF_ENABLE_SYSTEM_POWER_SWITCH,
     CONF_ENABLE_DAILY_SUNSET_REPORT,
     CONF_ENABLE_BACKUP_HELPERS,
     CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
@@ -72,6 +73,7 @@ from .const import (
     DEFAULT_BACKUP_RESERVED_SOC_PERCENT,
     DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     DEFAULT_DEBUG_MODE,
+    DEFAULT_ENABLE_SYSTEM_POWER_SWITCH,
     DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
     DEFAULT_ENABLE_BACKUP_HELPERS,
     DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
@@ -256,6 +258,12 @@ class EcoFlowOptionsFlow(OptionsFlow):
         current_debug_mode = bool(
             option_defaults.get(CONF_DEBUG_MODE, DEFAULT_DEBUG_MODE)
         )
+        current_system_power_switch = bool(
+            option_defaults.get(
+                CONF_ENABLE_SYSTEM_POWER_SWITCH,
+                DEFAULT_ENABLE_SYSTEM_POWER_SWITCH,
+            )
+        )
         current_notify_entity = notification_target_entity_id(
             normalized_daily_options.get(
                 CONF_DAILY_REPORT_NOTIFY_TARGET,
@@ -299,6 +307,10 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 vol.Required(CONF_DEBUG_MODE, default=current_debug_mode): BooleanSelector(
                     BooleanSelectorConfig()
                 ),
+                vol.Required(
+                    CONF_ENABLE_SYSTEM_POWER_SWITCH,
+                    default=current_system_power_switch,
+                ): BooleanSelector(BooleanSelectorConfig()),
                 vol.Required(
                     CONF_ENABLE_DAILY_SUNSET_REPORT,
                     default=bool(

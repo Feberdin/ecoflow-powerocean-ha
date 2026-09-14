@@ -53,6 +53,9 @@ CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION = "enable_backup_outage_notification"
 CONF_BACKUP_OUTAGE_NOTIFY_TARGET = "backup_outage_notify_target"
 """Home-Assistant-Notify-Entität für Stromausfall-/Backup-Benachrichtigungen."""
 
+CONF_ENABLE_SYSTEM_POWER_SWITCH = "enable_system_power_switch"
+"""Aktiviert den optionalen Schalter fuer System/Wechselrichter AN/AUS."""
+
 CONF_ENABLE_DAILY_SUNSET_REPORT = "enable_daily_sunset_report"
 """Aktiviert den optionalen Tagesbericht bei Sonnenuntergang."""
 
@@ -94,6 +97,9 @@ DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION = False
 
 DEFAULT_BACKUP_OUTAGE_NOTIFY_TARGET = {}
 """Kein Stromausfall-Benachrichtigungsziel voreingestellt."""
+
+DEFAULT_ENABLE_SYSTEM_POWER_SWITCH = False
+"""Der System-Power-Schalter ist standardmaessig deaktiviert."""
 
 DEFAULT_ENABLE_DAILY_SUNSET_REPORT = False
 """Täglicher Sonnenuntergangsbericht ist standardmäßig deaktiviert."""
@@ -169,6 +175,9 @@ TOPIC_GET = "/app/{user_id}/{sn}/thing/property/get"
 TOPIC_GET_REPLY = "/app/{user_id}/{sn}/thing/property/get_reply"
 """MQTT-Topic für die Antwort auf eine GET-Anfrage."""
 
+TOPIC_SET = "/app/{user_id}/{sn}/thing/property/set"
+"""MQTT-Topic zum Setzen von Geräteeigenschaften."""
+
 # ── Protobuf / Nachrichtentypen ───────────────────────────────────────────────
 
 # Alle PowerOcean Plus MQTT-Nachrichten sind Protobuf-kodiert und optional
@@ -186,9 +195,18 @@ CMD_ID_BP_STATUS = 7
 CMD_ID_ENERGY_STREAM = 33
 """cmdId für JTS1_ENERGY_STREAM_REPORT — Energiefluss: SOC, Grid, Solar, Last."""
 
+CMD_ID_EMS_CHANGE_REPORT = 17
+"""cmdId fuer den per App-Mitschnitt beobachteten EMS-Change-Report in get_reply."""
+
+CMD_ID_EMS_CHANGE_REPORT_LEGACY = 8
+"""cmdId-Variante aus externen PowerOcean-Protobuf-Mappings."""
+
+CMD_ID_SYSTEM_POWER = 105
+"""cmdId fuer den optionalen System-AN/AUS-Schreibbefehl."""
+
 # ── Plattformen ───────────────────────────────────────────────────────────────
 
-PLATFORMS = ["sensor", "binary_sensor", "button"]
+PLATFORMS = ["sensor", "binary_sensor", "button", "switch"]
 """Liste der Home Assistant Plattformen, die diese Integration nutzt."""
 
 # ── Datenschlüssel im Coordinator ─────────────────────────────────────────────
@@ -201,6 +219,9 @@ DATA_ENERGY_STREAM = "energy_stream"
 
 DATA_EMS_HEARTBEAT = "ems_heartbeat"
 """Schlüssel im Coordinator-Datensatz für JTS1_EMS_HEARTBEAT Daten (3-Phasen, MPPT)."""
+
+DATA_SYSTEM_STATUS = "system_status"
+"""Schlüssel im Coordinator-Datensatz für JTS1_EMS_CHANGE_REPORT Daten."""
 
 DATA_BATTERIES_OBSERVED_AT = "batteries_observed_at"
 """UTC-Zeitpunkt der letzten Batterie-Pack-Nachricht."""

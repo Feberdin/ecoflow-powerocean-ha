@@ -37,6 +37,7 @@
         "data": {
           "num_battery_packs": "Number of Battery Packs",
           "debug_mode": "Enable Debug Mode",
+          "enable_system_power_switch": "Enable System Power switch",
           "enable_daily_sunset_report": "Enable daily sunset report",
           "daily_report_notify_target": "Notification target",
           "daily_report_feed_in_tariff_eur_per_kwh": "Feed-in tariff (€/kWh)",
@@ -52,6 +53,7 @@
         "data_description": {
           "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving.",
           "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed.",
+          "enable_system_power_switch": "Creates an optional switch that turns the PowerOcean system on or off like the EcoFlow App. Turning it off stops production; turning it on can take 1–2 minutes.",
           "enable_daily_sunset_report": "Sends a daily report at sunset with exported energy, calculated value, and battery-full duration.",
           "daily_report_notify_target": "Notify entity that receives the daily report. It must be set when the report is enabled.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Used to calculate the daily value. Example from the Westnetz billing data: 0.077 €/kWh. Decimal comma or dot are both accepted.",
@@ -218,6 +220,42 @@
       "grid_export_energy": {
         "name": "Grid Export"
       },
+      "system_power_state": {
+        "name": "System Power State"
+      },
+      "system_work_mode": {
+        "name": "System Work Mode"
+      },
+      "system_work_state": {
+        "name": "System Work State"
+      },
+      "system_grid_status": {
+        "name": "System Grid Status"
+      },
+      "system_battery_charge_limit": {
+        "name": "Battery Charge Limit"
+      },
+      "system_battery_discharge_limit": {
+        "name": "Battery Discharge Limit"
+      },
+      "system_backup_ratio": {
+        "name": "Backup Reserve"
+      },
+      "system_feed_mode": {
+        "name": "Feed-in Mode"
+      },
+      "system_feed_ratio": {
+        "name": "Feed-in Ratio"
+      },
+      "system_feed_power": {
+        "name": "Feed-in Power"
+      },
+      "battery_total_charged_energy": {
+        "name": "Battery Total Charged"
+      },
+      "battery_total_discharged_energy": {
+        "name": "Battery Total Discharged"
+      },
       "battery_discharge_energy": {
         "name": "Battery Discharged"
       },
@@ -276,6 +314,11 @@
       },
       "backup_outage_notification_test": {
         "name": "Test power outage notification"
+      }
+    },
+    "switch": {
+      "system_power": {
+        "name": "System Power"
       }
     }
   }

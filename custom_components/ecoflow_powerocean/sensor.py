@@ -72,6 +72,7 @@ from .const import (
     DATA_BATTERIES,
     DATA_ENERGY_STREAM,
     DATA_EMS_HEARTBEAT,
+    DATA_SYSTEM_STATUS,
     DEFAULT_NUM_BATTERY_PACKS,
     DOMAIN,
     MANUFACTURER,
@@ -570,6 +571,111 @@ EMS_HEARTBEAT_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
 )
 
 
+SYSTEM_STATUS_SENSOR_TYPES: tuple[EcoFlowSystemSensorDescription, ...] = (
+    EcoFlowSystemSensorDescription(
+        key="system_power_state",
+        translation_key="system_power_state",
+        icon="mdi:power",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.system_power_state,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_work_mode",
+        translation_key="system_work_mode",
+        icon="mdi:cog-transfer",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.ems_work_mode_label,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_work_state",
+        translation_key="system_work_state",
+        icon="mdi:state-machine",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.ems_work_state_label,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_grid_status",
+        translation_key="system_grid_status",
+        icon="mdi:transmission-tower",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.sys_grid_sta,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_battery_charge_limit",
+        translation_key="system_battery_charge_limit",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-arrow-up",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.sys_bat_chg_up_limit,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_battery_discharge_limit",
+        translation_key="system_battery_discharge_limit",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-arrow-down",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.sys_bat_dsg_down_limit,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_backup_ratio",
+        translation_key="system_backup_ratio",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-lock",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.sys_bat_backup_ratio,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_feed_mode",
+        translation_key="system_feed_mode",
+        icon="mdi:transmission-tower-export",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.ems_feed_mode,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_feed_ratio",
+        translation_key="system_feed_ratio",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:transmission-tower-export",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.ems_feed_ratio,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="system_feed_power",
+        translation_key="system_feed_power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:transmission-tower-export",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.ems_feed_power_w,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="battery_total_charged_energy",
+        translation_key="battery_total_charged_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-plus",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.bp_total_charge_energy_kwh,
+    ),
+    EcoFlowSystemSensorDescription(
+        key="battery_total_discharged_energy",
+        translation_key="battery_total_discharged_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-minus",
+        data_key=DATA_SYSTEM_STATUS,
+        value_fn=lambda d: d.bp_total_discharge_energy_kwh,
+    ),
+)
+
+
 # ── Energie-Akkumulatoren (kWh) ───────────────────────────────────────────────
 
 ENERGY_ACCUMULATOR_TYPES: tuple[EcoFlowEnergyAccumulatorDescription, ...] = (
@@ -755,7 +861,11 @@ async def async_setup_entry(
         )
 
     # Systemweite Leistungs-Sensoren
-    for desc in (*ENERGY_STREAM_SENSOR_TYPES, *EMS_HEARTBEAT_SENSOR_TYPES):
+    for desc in (
+        *ENERGY_STREAM_SENSOR_TYPES,
+        *EMS_HEARTBEAT_SENSOR_TYPES,
+        *SYSTEM_STATUS_SENSOR_TYPES,
+    ):
         entities.append(EcoFlowSystemSensor(
             coordinator=coordinator, description=desc,
             device_info=device_info, serial=serial,

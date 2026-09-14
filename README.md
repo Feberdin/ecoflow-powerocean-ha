@@ -21,6 +21,7 @@ Inoffizielle Home Assistant Integration für die **EcoFlow PowerOcean Plus** Pho
 - **Gap-Reconciliation** — bei kurzer Internet-Unterbrechung wird die Energielücke beim Reconnect transparent geschätzt
 - **Backup Helpers (optional)** — Laufzeitabschätzung, Stromausfall-Erkennung und Hilfszustände für eigene Automationen
 - **Täglicher Sonnenuntergangsbericht (optional)** — Einspeise-kWh, geschätzte Vergütung und Akku-100%-Dauer per Home-Assistant-Nachricht
+- **System-Power-Schalter (optional)** — PowerOcean wie in der EcoFlow App ein- oder ausschalten, standardmäßig deaktiviert
 - **Praxisbeispiele** — YAML-Vorlagen für eigene Automationen wie PV-Überschussladen
 
 ---
@@ -112,6 +113,49 @@ Du findest sie ebenfalls unter:
 *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren*
 
 Damit bleibt die Kernintegration für alle bestehenden Nutzer unverändert. Erst wenn du das Feature aktivierst, werden zusätzliche Helper-Entitäten angelegt.
+
+---
+
+## Optionaler System-Power-Schalter
+
+Der System-Power-Schalter ist **optional** und standardmäßig **deaktiviert**.
+Du aktivierst ihn unter:
+
+*Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Konfigurieren → System-Power-Schalter aktivieren*
+
+Danach legt die Integration eine `switch`-Entität an, die denselben
+System-Power-Befehl verwendet wie die EcoFlow App. Damit kann der PowerOcean
+per Home Assistant ein- oder ausgeschaltet werden.
+
+Wichtig:
+- Beim Ausschalten stoppt die Anlage die Produktion.
+- Beim Einschalten kann es 1–2 Minuten dauern, bis der echte Gerätestatus wieder zurückgemeldet wird.
+- Der Schalter zeigt bis zur ersten echten Rückmeldung einen angenommenen Zustand an.
+- Bestehende Sensoren, Energy-Dashboard-Zähler und Backup Helpers bleiben unverändert.
+
+### Einordnung der möglichen Nacht-Ersparnis
+
+Der belegte Herstellerwert für den PowerOcean Plus liegt bei
+**unter 20,5 W Eigenverbrauch nachts**. Bei 10 Stunden Nacht entspricht das
+rund **0,205 kWh pro Nacht**, also etwa **6,15 kWh pro Monat** oder
+**74,8 kWh pro Jahr**.
+
+Bei einem angenommenen Netzstrompreis von `0,35 €/kWh` entspricht das:
+
+| Zeitraum | Energie | Brutto-Effekt bei 0,35 €/kWh | Gegenüber Einspeisevergütung 0,077 €/kWh |
+|----------|---------|------------------------------|------------------------------------------|
+| Tag/Nacht | 0,205 kWh | 0,07 € | 0,06 € |
+| Monat (30 Tage) | 6,15 kWh | 2,15 € | 1,68 € |
+| Jahr | 74,8 kWh | 26,18 € | 20,43 € |
+
+Wenn eine konkrete Anlage im Standby tatsächlich höher liegt, z. B. bei
+`100 W`, steigt der Effekt entsprechend auf ca. **1,0 kWh pro Nacht**,
+**30 kWh pro Monat** und **365 kWh pro Jahr**. Das wären bei `0,35 €/kWh`
+etwa **0,35 € pro Tag**, **10,50 € pro Monat** und **127,75 € pro Jahr**.
+
+Die Werte sind eine technische Orientierung. Ob sich das automatische
+Abschalten lohnt, hängt von realem Eigenverbrauch, Nachtlänge,
+Strompreis, Einspeisevergütung und gewünschter Anlagenverfügbarkeit ab.
 
 ---
 
@@ -362,6 +406,15 @@ Home Assistant und muss auf die eigenen Entity-IDs angepasst werden.
 | Sensor | Beschreibung |
 |--------|-------------|
 | Verbindungsstatus | MQTT-Verbindung: `connected` / `disconnected` |
+| System-Power-Status | Aus EcoFlow-Rückmeldung gelesener Zustand: `on` / `off` / `unknown` |
+| System-Arbeitsmodus | Ausgelesener EMS-Arbeitsmodus, z. B. Eigenverbrauch oder Standby |
+| System-Arbeitszustand | Ausgelesener EMS-Arbeitszustand, z. B. `running` oder `stop` |
+| System-Netzstatus | Rohwert des gemeldeten Netzstatus |
+| Batterie-Ladegrenze | Ausgelesene obere Batterie-Ladegrenze in % |
+| Batterie-Entladegrenze | Ausgelesene untere Batterie-Entladegrenze in % |
+| Backup-Reserve | Ausgelesener Backup-Anteil in % |
+| Einspeise-Modus / Ratio / Leistung | Ausgelesene Einspeise-Konfiguration und Leistung, sofern vom Gerät geliefert |
+| Batterie gesamt geladen / entladen | Vom Gerät gemeldete kumulierte Batterie-Energie in kWh |
 
 > Deaktivierte Sensoren lassen sich unter *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Entitäten* aktivieren.
 
@@ -479,6 +532,8 @@ Alle MQTT-Nachrichten sind als [Protocol Buffers](https://protobuf.dev/) kodiert
 |---------|-------|---------------|--------|
 | 96 | 1 | `JTS1_EMS_HEARTBEAT` | Wechselrichter, 3-Phasen, MPPT |
 | 96 | 7 | `JTS1_BP_STA_REPORT` | Batterie-Pack-Status |
+| 96 | 17 | `JTS1_EMS_CHANGE_REPORT` | System-Power-Status, Arbeitsmodus, Grenzwerte, Feed-in-Werte |
+| 96 | 105 | `set`-Befehl | Optionaler System-Power-Befehl AN/AUS, nur wenn der Schalter aktiviert ist |
 
 ### Warum nicht die offizielle Developer API?
 
@@ -552,6 +607,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.14` | Veraltete Energy-Stream-Daten werden gegenüber frischeren Batterie-/EMS-Daten erkannt | SOC-Sprünge und Fortschreiben alter Leistungswerte nach App-/Cloud-Lücken vermeiden |
 | `v0.4.15` | Hintergrundaufgaben aus synchronen HA-Callbacks thread-sicher geplant | Home-Assistant-Warnungen und potenzielle Thread-Safety-Probleme vermeiden |
 | `v0.4.16` | EMS-Batterievorzeichen normalisiert, wenn Energy-Stream-Daten veraltet sind | Hausverbrauch und Batterie-Lade-/Entladezähler bei frischen EMS-Fallbackwerten korrekt halten |
+| `v0.4.17` | Optionaler System-Power-Schalter und zusätzliche EMS-Statussensoren ergänzt | PowerOcean wie in der EcoFlow App ein-/ausschalten und weitere ausgelesene Endpunkte für Automationen sichtbar machen |
 
 ---
 
