@@ -23,6 +23,17 @@ Wichtige Invarianten:
 - Keine neuen externen Dependencies einfuehren, wenn es nicht zwingend noetig ist.
 - Feature-Optionen standardmaessig deaktiviert halten.
 
+## Sprachregel
+
+- In deutschsprachiger Nutzerkommunikation, GitHub-Kommentaren, Release-Notes
+  und README-/Doku-Texten immer normale deutsche Umlaute und `ß` verwenden:
+  `ä`, `ö`, `ü`, `Ä`, `Ö`, `Ü`, `ß`.
+- Keine Umschreibungen wie `ae`, `oe`, `ue` oder `ss` verwenden, wenn ein
+  deutscher Fließtext gemeint ist. Ausnahme: technische Identifier, Dateinamen,
+  Entity-IDs, URLs, Code, Logs oder bewusst ASCII-only formulierte Protokollwerte.
+- Antworten im Namen von Feberdin sollen freundlich, menschlich und klar klingen;
+  keine steifen Bot-Formulierungen und keine unnötig technische Distanz.
+
 Debug-Hinweis:
 - Bei HA-UI-Fehlern zuerst den echten Python-Traceback suchen. UI-Meldungen wie
   `400: Bad Request` oder `500 Internal Server Error` sind nur Symptome.
