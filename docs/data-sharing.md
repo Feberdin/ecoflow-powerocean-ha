@@ -1,14 +1,15 @@
 # Anonymisierte Messdaten teilen
 
-Dieses Dokument beschreibt ein kleines JSON-Format, mit dem Nutzer oder andere
-Repos Messpunkte zur EcoFlow-PowerOcean-Auswertung teilen können.
+Dieses Dokument beschreibt ein anonymisiertes JSON-Format, mit dem Nutzer oder
+andere Repos Messpunkte zur EcoFlow-PowerOcean-Auswertung teilen können.
 
 ## Zweck
 
 Die Integration kann nur besser werden, wenn reale Anlagenzustände vergleichbar
 werden: PV-Erzeugung, Hausverbrauch, Netzbezug/Einspeisung, Batterieleistung,
-SOC und optionale Statuswerte. Das Format ist bewusst einfach gehalten und
-benötigt keine zusätzliche Abhängigkeit.
+SOC, Energiezähler, Batteriepackdaten, Backup-Schätzung, Tagesberichtswerte
+und Statuswerte. Das Format benötigt keine zusätzliche Abhängigkeit und kann mit
+dem Script `tools/build_anonymized_observation.py` erzeugt werden.
 
 ## Datenschutz
 
@@ -35,12 +36,49 @@ Die zugehörige JSON-Schema-Datei liegt hier:
 
 Wichtige Felder:
 
-- `schema_version`: aktuell immer `1`
+- `schema_version`: aktuell immer `2`
 - `observed_at`: Zeitpunkt des Messpunkts als ISO-8601-Zeitstempel
 - `source`: anonymisierte Angaben zur Quelle
-- `measurements`: Leistungs- und SOC-Werte
+- `measurements.power`: aktuelle Live-Leistungswerte
+- `measurements.energy`: Langzeit-Energiezähler
+- `measurements.battery`: Gesamt-SOC und Batteriepackdaten
+- `measurements.backup`: Backup-Laufzeit und nutzbare Reserve
+- `measurements.daily_report`: Tagesbericht-Statistiken
+- `measurements.system_limits`: ausgelesene Systemgrenzen
 - `status`: optionale Statuswerte der Integration oder eines Fremdrepos
+- `privacy`: welche Redaktionen angewendet wurden
+- `entity_sources`: nur anonymisierte Quellenhinweise, keine vollständigen Entity-IDs
 - `notes`: optionale Freitextnotiz ohne private Daten
+
+## Export aus Home Assistant
+
+Wenn du einen lokalen Snapshot aus Home Assistant erzeugen möchtest:
+
+```bash
+HOMEASSISTANT_TOKEN=... \
+python3 tools/build_anonymized_observation.py \
+  --ha-url http://homeassistant.local:8123 \
+  --source-id sample-a \
+  --integration-version v0.4.21 \
+  --home-assistant-version 2026.7.4 \
+  --battery-packs 3 \
+  --backup-reserved-soc-percent 10 \
+  --reserve-guard-restart-margin-percent 2
+```
+
+Wichtig: Den Token nur als Umgebungsvariable verwenden und nicht in Dateien,
+Issues oder Logs schreiben.
+
+Wenn du bereits eine `/api/states`-Datei hast:
+
+```bash
+python3 tools/build_anonymized_observation.py \
+  --states states.json \
+  --source-id sample-a
+```
+
+Das Script entfernt keine Rohdatei und schreibt standardmäßig nichts auf die
+Festplatte. Es gibt das anonymisierte JSON auf stdout aus.
 
 ## Beispiel für andere Repos
 
@@ -48,22 +86,32 @@ Andere Projekte können dasselbe JSON erzeugen und in einem GitHub-Issue
 anhängen oder als Pull Request mit einem anonymisierten Beispieldatensatz
 einreichen.
 
-Minimal hilfreich ist:
+Minimal hilfreich ist weiterhin ein `measurements.power`-Block plus SOC. Besser
+ist ein vollständiger Snapshot wie in
+[`examples/powerocean-observation.example.json`](../examples/powerocean-observation.example.json).
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "observed_at": "2026-05-29T21:30:00+02:00",
   "source": {
     "source_id": "anonymous-sample-1",
     "repo": "example/powerocean-tool"
   },
   "measurements": {
-    "total_soc_percent": 10.0,
-    "solar_power_w": 0.0,
-    "grid_power_w": 180.0,
-    "load_power_w": 180.0,
-    "battery_power_w": 0.0
+    "power": {
+      "solar_power_w": 0.0,
+      "grid_power_w": 180.0,
+      "load_power_w": 180.0,
+      "battery_power_w": 0.0
+    },
+    "battery": {
+      "total_soc_percent": 10.0
+    }
+  },
+  "privacy": {
+    "redaction_level": "entity_id_suffix_only",
+    "removed": ["serial_numbers", "tokens", "email_addresses", "full_entity_ids"]
   }
 }
 ```
@@ -82,6 +130,21 @@ Format gilt:
 
 Wenn eine Quelle diese Vorzeichen nicht sicher liefern kann, bitte in `notes`
 kurz beschreiben, wie die Werte zu lesen sind.
+
+## Was bewusst nicht geteilt wird
+
+Das Export-Script schreibt keine vollständigen Entity-IDs in `entity_sources`.
+Aus `sensor.garage_ecoflow_powerocean_plus_netz_leistung` wird z. B. nur:
+
+```json
+{
+  "domain": "sensor",
+  "matched_suffix": "netz_leistung"
+}
+```
+
+So bleibt nachvollziehbar, welches Feld erkannt wurde, ohne Räume, Namen oder
+eigene Entity-Benennungen mitzuveröffentlichen.
 
 ## Validierung ohne Zusatzabhängigkeiten
 

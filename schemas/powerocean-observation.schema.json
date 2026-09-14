@@ -5,11 +5,11 @@
   "description": "Anonymisierter Messpunkt für EcoFlow PowerOcean Auswertungen.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "observed_at", "source", "measurements"],
+  "required": ["schema_version", "observed_at", "source", "measurements", "privacy"],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "observed_at": {
       "type": "string",
@@ -48,84 +48,179 @@
     "measurements": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["total_soc_percent"],
       "properties": {
-        "total_soc_percent": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100
+        "power": {
+          "$ref": "#/$defs/power"
         },
-        "solar_power_w": {
-          "type": "number"
+        "energy": {
+          "$ref": "#/$defs/energy"
         },
-        "grid_power_w": {
-          "type": "number",
-          "description": "Positiv = Netzbezug, negativ = Einspeisung."
+        "battery": {
+          "$ref": "#/$defs/battery"
         },
-        "load_power_w": {
-          "type": "number"
+        "backup": {
+          "$ref": "#/$defs/backup"
         },
-        "battery_power_w": {
-          "type": "number",
-          "description": "Positiv = Batterie entlädt, negativ = Batterie lädt."
+        "daily_report": {
+          "$ref": "#/$defs/daily_report"
         },
-        "grid_export_energy_kwh": {
-          "type": "number",
-          "minimum": 0
-        },
-        "grid_import_energy_kwh": {
-          "type": "number",
-          "minimum": 0
+        "system_limits": {
+          "$ref": "#/$defs/system_limits"
         }
       }
     },
     "status": {
+      "$ref": "#/$defs/status"
+    },
+    "settings": {
+      "$ref": "#/$defs/settings"
+    },
+    "privacy": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["redaction_level", "removed"],
       "properties": {
-        "system_power_state": {
+        "redaction_level": {
           "type": "string",
-          "enum": ["on", "off", "unknown"]
+          "enum": ["entity_id_suffix_only"]
         },
-        "backup_active": {
-          "type": "boolean"
-        },
-        "power_outage": {
-          "type": "boolean"
-        },
-        "outage_reason": {
-          "type": "string"
-        },
-        "work_mode": {
-          "type": "string"
-        },
-        "work_state": {
-          "type": "string"
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
-    "settings": {
+    "entity_sources": {
       "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "backup_reserved_soc_percent": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 99
-        },
-        "system_power_reserve_guard_enabled": {
-          "type": "boolean"
-        },
-        "system_power_reserve_restart_margin_percent": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 20
+      "description": "Anonymisierte Quellenhinweise: keine vollständigen Entity-IDs.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["domain", "matched_suffix"],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "matched_suffix": {
+            "type": "string"
+          }
         }
       }
     },
     "notes": {
       "type": "string",
       "description": "Optionale kurze Notiz ohne private Daten."
+    }
+  },
+  "$defs": {
+    "number": {
+      "type": "number"
+    },
+    "power": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "solar_power_w": { "$ref": "#/$defs/number" },
+        "grid_power_w": {
+          "type": "number",
+          "description": "Positiv = Netzbezug, negativ = Einspeisung."
+        },
+        "load_power_w": { "$ref": "#/$defs/number" },
+        "battery_power_w": {
+          "type": "number",
+          "description": "Positiv = Batterie entlädt, negativ = Batterie lädt."
+        }
+      }
+    },
+    "energy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "solar_energy_kwh": { "type": "number", "minimum": 0 },
+        "grid_import_energy_kwh": { "type": "number", "minimum": 0 },
+        "grid_export_energy_kwh": { "type": "number", "minimum": 0 },
+        "battery_discharge_energy_kwh": { "type": "number", "minimum": 0 },
+        "battery_charge_energy_kwh": { "type": "number", "minimum": 0 }
+      }
+    },
+    "battery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total_soc_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "total_power_w": { "$ref": "#/$defs/number" },
+        "packs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["index"],
+            "properties": {
+              "index": { "type": "integer", "minimum": 1, "maximum": 9 },
+              "soc_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+              "soh_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+              "power_w": { "$ref": "#/$defs/number" },
+              "remaining_energy_wh": { "type": "number", "minimum": 0 },
+              "temperature_c": { "$ref": "#/$defs/number" },
+              "cycles": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtime_estimate_minutes": { "type": "number", "minimum": 0 },
+        "runtime_estimate_hours": { "type": "number", "minimum": 0 },
+        "usable_energy_wh": { "type": "number", "minimum": 0 }
+      }
+    },
+    "daily_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "total_export_energy_kwh": { "type": "number", "minimum": 0 },
+        "total_value_eur": { "type": "number", "minimum": 0 },
+        "total_battery_full_hours": { "type": "number", "minimum": 0 }
+      }
+    },
+    "system_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "battery_charge_limit_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "battery_discharge_limit_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "backup_reserve_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "feed_in_power_w": { "$ref": "#/$defs/number" }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "connection_status": { "type": "string" },
+        "system_power_state": { "type": "string", "enum": ["on", "off", "unknown"] },
+        "work_mode": { "type": "string" },
+        "work_state": { "type": "string" },
+        "grid_status": { "type": "string" },
+        "recommended_action": { "type": "string" },
+        "backup_active": { "type": "boolean" },
+        "power_outage": { "type": "boolean" },
+        "backup_reserve_critical": { "type": "boolean" }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "backup_reserved_soc_percent": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "system_power_reserve_guard_enabled": { "type": "boolean" },
+        "system_power_reserve_restart_margin_percent": { "type": "integer", "minimum": 0, "maximum": 20 }
+      }
     }
   }
 }

@@ -576,12 +576,14 @@ Beiträge, Bugreports und Feedback sind herzlich willkommen!
 
 Wenn du Messdaten aus dieser Integration oder aus einem anderen Repo beisteuern
 möchtest, nutze bitte das dokumentierte Format in
-[`docs/data-sharing.md`](docs/data-sharing.md). Das Format ist bewusst klein:
-Zeitpunkt, anonymisierte Quelle, SOC, PV-/Netz-/Haus-/Batterieleistung und
-optionale Statuswerte.
+[`docs/data-sharing.md`](docs/data-sharing.md). Das Format enthält Live-Leistung,
+Energiezähler, Batteriepackdaten, Backup-Schätzung, Tagesberichtswerte,
+Systemstatus und anonymisierte Quellenhinweise.
 
 Bitte niemals Seriennummern, E-Mail-Adressen, Tokens, Cookies oder Standortdaten
 teilen. Für GitHub gibt es zusätzlich die Vorlage „Anonymisierte Messdaten“.
+Ein lokaler Snapshot kann ohne Zusatzabhängigkeiten mit
+`tools/build_anonymized_observation.py` erzeugt werden.
 
 ### Lokale Validierung
 
@@ -649,6 +651,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.18` | Mindestversion von `paho-mqtt` auf `2.1.0` angehoben und GitHub Actions aktualisiert | Security-/Wartungs-PRs auflösen und Node-20-Deprecation-Warnungen in CI vermeiden |
 | `v0.4.19` | Partielle EMS-Statusmeldungen erhalten den zuletzt bekannten System-Power-Status | Verhindert, dass `System-Power-Status` nach einem unvollständigen Status-Telegramm auf `unknown` zurückfällt |
 | `v0.4.20` | Optionale System-Power-Reserve-Automatik und anonymisiertes Messdatenformat ergänzt | Akku-Reserve nachts schützen und externe Beobachtungsdaten strukturiert für Analysen einsammeln |
+| `v0.4.21` | Anonymisiertes Messdatenformat auf reichere v2-Snapshots erweitert | Mehr Analyseinformationen teilen, ohne Seriennummern, Tokens, Standort oder vollständige Entity-IDs offenzulegen |
 
 ---
 
