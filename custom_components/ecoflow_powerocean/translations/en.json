@@ -38,6 +38,8 @@
           "num_battery_packs": "Number of Battery Packs",
           "debug_mode": "Enable Debug Mode",
           "enable_system_power_switch": "Enable System Power switch",
+          "enable_system_power_reserve_guard": "Enable System Power reserve automation",
+          "system_power_reserve_restart_margin_percent": "Restart hysteresis above reserve (%)",
           "enable_daily_sunset_report": "Enable daily sunset report",
           "daily_report_notify_target": "Notification target",
           "daily_report_feed_in_tariff_eur_per_kwh": "Feed-in tariff (€/kWh)",
@@ -54,6 +56,8 @@
           "num_battery_packs": "Number of physically installed battery packs (1–9). The integration will reload automatically after saving.",
           "debug_mode": "Enables verbose logs for this integration. Reload the integration afterwards and download diagnostics if needed.",
           "enable_system_power_switch": "Creates an optional switch that turns the PowerOcean system on or off like the EcoFlow App. Turning it off stops production; turning it on can take 1–2 minutes.",
+          "enable_system_power_reserve_guard": "Turns the PowerOcean off automatically at night when total SOC reaches the configured backup reserve. After an automatic shutdown it turns the system back on in the morning.",
+          "system_power_reserve_restart_margin_percent": "Additional margin above the backup reserve where the integration may turn the system back on at night. Example: reserve 10%, hysteresis 2% means restart from 12%.",
           "enable_daily_sunset_report": "Sends a daily report at sunset with exported energy, calculated value, and battery-full duration.",
           "daily_report_notify_target": "Notify entity that receives the daily report. It must be set when the report is enabled.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Used to calculate the daily value. Example from the Westnetz billing data: 0.077 €/kWh. Decimal comma or dot are both accepted.",
@@ -71,7 +75,8 @@
     "error": {
       "missing_notification_target": "Select a notification target or disable the daily sunset report.",
       "missing_backup_outage_notification_target": "Select a power outage notification target or disable the power outage notification.",
-      "backup_helpers_required": "Enable Backup Helpers so the power outage notification can evaluate the backup state."
+      "backup_helpers_required": "Enable Backup Helpers so the power outage notification can evaluate the backup state.",
+      "system_power_switch_required": "Enable the System Power switch first so the reserve automation is controllable and visible."
     }
   },
   "entity": {

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-05-29T21:30:00+02:00",
+  "source": {
+    "source_id": "anonymous-sample-1",
+    "repo": "example/powerocean-tool",
+    "integration_version": "0.4.20",
+    "home_assistant_version": "2026.7.4",
+    "device_model": "PowerOcean Plus",
+    "battery_packs": 3
+  },
+  "measurements": {
+    "total_soc_percent": 10.0,
+    "solar_power_w": 0.0,
+    "grid_power_w": 180.0,
+    "load_power_w": 180.0,
+    "battery_power_w": 0.0,
+    "grid_export_energy_kwh": 12.34,
+    "grid_import_energy_kwh": 4.56
+  },
+  "status": {
+    "system_power_state": "on",
+    "backup_active": false,
+    "power_outage": false,
+    "outage_reason": "grid_frequency_still_present",
+    "work_mode": "self_use",
+    "work_state": "running"
+  },
+  "settings": {
+    "backup_reserved_soc_percent": 10,
+    "system_power_reserve_guard_enabled": true,
+    "system_power_reserve_restart_margin_percent": 2
+  },
+  "notes": "Anonymes Beispiel ohne Seriennummer, Adresse, E-Mail oder Token."
+}

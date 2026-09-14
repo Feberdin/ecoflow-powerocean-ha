@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Feberdin/ecoflow-powerocean-ha/schemas/powerocean-observation.schema.json",
+  "title": "EcoFlow PowerOcean Observation",
+  "description": "Anonymisierter Messpunkt für EcoFlow PowerOcean Auswertungen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observed_at", "source", "measurements"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id"],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 3,
+          "description": "Anonyme Quellen-ID ohne Seriennummer, Namen oder E-Mail-Adresse."
+        },
+        "repo": {
+          "type": "string",
+          "description": "Optionales Quell-Repo, z. B. other-owner/other-repo."
+        },
+        "integration_version": {
+          "type": "string"
+        },
+        "home_assistant_version": {
+          "type": "string"
+        },
+        "device_model": {
+          "type": "string"
+        },
+        "battery_packs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9
+        }
+      }
+    },
+    "measurements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_soc_percent"],
+      "properties": {
+        "total_soc_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "solar_power_w": {
+          "type": "number"
+        },
+        "grid_power_w": {
+          "type": "number",
+          "description": "Positiv = Netzbezug, negativ = Einspeisung."
+        },
+        "load_power_w": {
+          "type": "number"
+        },
+        "battery_power_w": {
+          "type": "number",
+          "description": "Positiv = Batterie entlädt, negativ = Batterie lädt."
+        },
+        "grid_export_energy_kwh": {
+          "type": "number",
+          "minimum": 0
+        },
+        "grid_import_energy_kwh": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "system_power_state": {
+          "type": "string",
+          "enum": ["on", "off", "unknown"]
+        },
+        "backup_active": {
+          "type": "boolean"
+        },
+        "power_outage": {
+          "type": "boolean"
+        },
+        "outage_reason": {
+          "type": "string"
+        },
+        "work_mode": {
+          "type": "string"
+        },
+        "work_state": {
+          "type": "string"
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backup_reserved_soc_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "system_power_reserve_guard_enabled": {
+          "type": "boolean"
+        },
+        "system_power_reserve_restart_margin_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optionale kurze Notiz ohne private Daten."
+    }
+  }
+}

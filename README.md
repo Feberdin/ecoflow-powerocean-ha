@@ -157,6 +157,33 @@ Die Werte sind eine technische Orientierung. Ob sich das automatische
 Abschalten lohnt, hängt von realem Eigenverbrauch, Nachtlänge,
 Strompreis, Einspeisevergütung und gewünschter Anlagenverfügbarkeit ab.
 
+### Reserve-Automatik für den System-Power-Schalter
+
+Die Reserve-Automatik ist **optional** und standardmäßig **deaktiviert**.
+Sie nutzt den vorhandenen Wert `Reservierter Backup-SOC (%)`. Wenn dieser
+z. B. auf `10` steht, kann die Integration den PowerOcean nachts automatisch
+ausschalten, sobald der Gesamt-Ladestand 10 % erreicht.
+
+Wichtig ist die Wiedereinschaltlogik: Die Anlage wird nach einer automatischen
+Abschaltung spätestens bei Sonnenaufgang wieder eingeschaltet, damit PV-Erzeugung
+und Batterieladung wieder anlaufen können. Zusätzlich gibt es eine
+Einschalt-Hysterese über der Reserve. Bei Reserve `10 %` und Hysterese `2 %`
+darf die Integration auch nachts wieder einschalten, wenn der SOC auf mindestens
+`12 %` steigt.
+
+Die Automatik schaltet nur wieder ein, wenn sie vorher selbst ausgeschaltet hat.
+Ein manuell ausgeschalteter Wechselrichter bleibt deshalb aus. Wenn die Backup
+Helpers einen Stromausfall oder aktiven Backupbetrieb erkennen, wird nicht
+automatisch geschaltet.
+
+Warum die Einschränkung wichtig ist: Wenn der Wechselrichter ausgeschaltet ist,
+wird der Akku normalerweise nicht mehr als AC-Quelle für das Haus genutzt. Das
+Haus bezieht dann Netzstrom, während der Akku im Wesentlichen stehen bleibt. Das
+ist sinnvoll, wenn man nachts nur Leerlaufverluste vermeiden und eine Reserve
+halten möchte. Es ist nicht sinnvoll, wenn das Haus nachts bewusst aus dem Akku
+versorgt werden soll oder wenn maximale Notstrombereitschaft wichtiger ist als
+die mögliche Standby-Ersparnis.
+
 ---
 
 ## Täglicher Sonnenuntergangsbericht
@@ -545,6 +572,17 @@ Die EcoFlow Developer API gibt für den PowerOcean Plus den Fehler **1006 „not
 
 Beiträge, Bugreports und Feedback sind herzlich willkommen!
 
+### Messdaten sicher teilen
+
+Wenn du Messdaten aus dieser Integration oder aus einem anderen Repo beisteuern
+möchtest, nutze bitte das dokumentierte Format in
+[`docs/data-sharing.md`](docs/data-sharing.md). Das Format ist bewusst klein:
+Zeitpunkt, anonymisierte Quelle, SOC, PV-/Netz-/Haus-/Batterieleistung und
+optionale Statuswerte.
+
+Bitte niemals Seriennummern, E-Mail-Adressen, Tokens, Cookies oder Standortdaten
+teilen. Für GitHub gibt es zusätzlich die Vorlage „Anonymisierte Messdaten“.
+
 ### Lokale Validierung
 
 ```bash
@@ -610,6 +648,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.17` | Optionaler System-Power-Schalter und zusätzliche EMS-Statussensoren ergänzt | PowerOcean wie in der EcoFlow App ein-/ausschalten und weitere ausgelesene Endpunkte für Automationen sichtbar machen |
 | `v0.4.18` | Mindestversion von `paho-mqtt` auf `2.1.0` angehoben und GitHub Actions aktualisiert | Security-/Wartungs-PRs auflösen und Node-20-Deprecation-Warnungen in CI vermeiden |
 | `v0.4.19` | Partielle EMS-Statusmeldungen erhalten den zuletzt bekannten System-Power-Status | Verhindert, dass `System-Power-Status` nach einem unvollständigen Status-Telegramm auf `unknown` zurückfällt |
+| `v0.4.20` | Optionale System-Power-Reserve-Automatik und anonymisiertes Messdatenformat ergänzt | Akku-Reserve nachts schützen und externe Beobachtungsdaten strukturiert für Analysen einsammeln |
 
 ---
 

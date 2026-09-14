@@ -59,6 +59,7 @@ from .const import (
     CONF_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     CONF_DEBUG_MODE,
     CONF_ENABLE_SYSTEM_POWER_SWITCH,
+    CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
     CONF_ENABLE_DAILY_SUNSET_REPORT,
     CONF_ENABLE_BACKUP_HELPERS,
     CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
@@ -66,6 +67,7 @@ from .const import (
     CONF_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     CONF_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
     CONF_SERIAL_NUMBER,
+    CONF_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT,
     DEFAULT_DAILY_REPORT_FEED_IN_TARIFF_EUR_PER_KWH,
     DEFAULT_DAILY_REPORT_NOTIFY_TARGET,
     DEFAULT_BACKUP_OUTAGE_NOTIFY_TARGET,
@@ -74,12 +76,14 @@ from .const import (
     DEFAULT_BACKUP_RUNTIME_SMOOTHING_MINUTES,
     DEFAULT_DEBUG_MODE,
     DEFAULT_ENABLE_SYSTEM_POWER_SWITCH,
+    DEFAULT_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
     DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
     DEFAULT_ENABLE_BACKUP_HELPERS,
     DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     DEFAULT_NUM_BATTERY_PACKS,
     DEFAULT_POWER_OUTAGE_FREQUENCY_MIN_HZ,
     DEFAULT_POWER_OUTAGE_GRID_POWER_THRESHOLD_W,
+    DEFAULT_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT,
     DOMAIN,
     MANUFACTURER,
     MAX_BATTERY_PACKS,
@@ -88,6 +92,9 @@ from .const import (
     POWER_OUTAGE_FREQUENCY_MIN_HZ_MIN,
     POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MAX,
     POWER_OUTAGE_GRID_POWER_THRESHOLD_W_MIN,
+    SYSTEM_POWER_RESERVE_RESTART_MARGIN_MAX,
+    SYSTEM_POWER_RESERVE_RESTART_MARGIN_MIN,
+    SYSTEM_POWER_RESERVE_RESTART_MARGIN_STEP,
 )
 from .backup_helpers import normalize_backup_helper_options
 from .backup_notification import normalize_backup_outage_notification_options
@@ -96,6 +103,7 @@ from .daily_report import (
     notification_target_entity_id,
     normalize_daily_report_options,
 )
+from .system_power_guard import normalize_system_power_reserve_guard_options
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -209,6 +217,9 @@ class EcoFlowOptionsFlow(OptionsFlow):
                 normalize_backup_outage_notification_options(normalized_input)
             )
             normalized_input.update(normalize_daily_report_options(normalized_input))
+            normalized_input.update(
+                normalize_system_power_reserve_guard_options(normalized_input)
+            )
 
             if (
                 normalized_input[CONF_ENABLE_DAILY_SUNSET_REPORT]
@@ -234,6 +245,14 @@ class EcoFlowOptionsFlow(OptionsFlow):
                     "missing_backup_outage_notification_target"
                 )
 
+            if (
+                normalized_input[CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD]
+                and not normalized_input[CONF_ENABLE_SYSTEM_POWER_SWITCH]
+            ):
+                errors[CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD] = (
+                    "system_power_switch_required"
+                )
+
             if not errors:
                 return self.async_create_entry(data=normalized_input)
 
@@ -245,6 +264,9 @@ class EcoFlowOptionsFlow(OptionsFlow):
             option_defaults
         )
         normalized_daily_options = normalize_daily_report_options(option_defaults)
+        normalized_reserve_guard_options = normalize_system_power_reserve_guard_options(
+            option_defaults
+        )
 
         current_packs = int(
             option_defaults.get(
@@ -311,6 +333,31 @@ class EcoFlowOptionsFlow(OptionsFlow):
                     CONF_ENABLE_SYSTEM_POWER_SWITCH,
                     default=current_system_power_switch,
                 ): BooleanSelector(BooleanSelectorConfig()),
+                vol.Required(
+                    CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+                    default=bool(
+                        normalized_reserve_guard_options.get(
+                            CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+                            DEFAULT_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+                        )
+                    ),
+                ): BooleanSelector(BooleanSelectorConfig()),
+                vol.Required(
+                    CONF_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT,
+                    default=int(
+                        normalized_reserve_guard_options.get(
+                            CONF_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT,
+                            DEFAULT_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT,
+                        )
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=SYSTEM_POWER_RESERVE_RESTART_MARGIN_MIN,
+                        max=SYSTEM_POWER_RESERVE_RESTART_MARGIN_MAX,
+                        step=SYSTEM_POWER_RESERVE_RESTART_MARGIN_STEP,
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
                 vol.Required(
                     CONF_ENABLE_DAILY_SUNSET_REPORT,
                     default=bool(

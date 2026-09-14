@@ -1,0 +1,59 @@
+name: Anonymisierte Messdaten
+description: Teile anonymisierte PowerOcean-Messpunkte für bessere Analysen.
+title: "[DATA] "
+labels: ["data-sample"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Teilen von Messdaten. Bitte poste nur anonymisierte Werte.
+        Keine Seriennummern, E-Mail-Adressen, Tokens, Cookies, Passwörter,
+        genauen Adressen oder GPS-Daten einfügen.
+
+  - type: input
+    id: source
+    attributes:
+      label: Anonyme Quellen-ID
+      description: Frei gewählte ID ohne Personenbezug, z. B. sample-a.
+      placeholder: sample-a
+    validations:
+      required: true
+
+  - type: input
+    id: source_repo
+    attributes:
+      label: Quell-Repo oder Tool
+      description: Optional, falls die Daten aus einem anderen Projekt kommen.
+      placeholder: other-owner/other-repo
+    validations:
+      required: false
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: JSON-Messdaten
+      description: Bitte am Format aus docs/data-sharing.md orientieren.
+      render: json
+      placeholder: |
+        {
+          "schema_version": 1,
+          "observed_at": "2026-05-29T21:30:00+02:00",
+          "source": {
+            "source_id": "sample-a"
+          },
+          "measurements": {
+            "total_soc_percent": 10.0
+          }
+        }
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Datenschutz geprüft
+      options:
+        - label: Ich habe Seriennummern, E-Mail-Adressen, Tokens, Cookies, Passwörter und Standortdaten entfernt.
+          required: true
+        - label: Die Vorzeichen der Leistungswerte sind beschrieben oder entsprechen docs/data-sharing.md.
+          required: true

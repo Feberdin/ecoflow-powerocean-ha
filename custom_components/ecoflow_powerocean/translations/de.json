@@ -38,6 +38,8 @@
           "num_battery_packs": "Anzahl Batterie-Packs",
           "debug_mode": "Debug-Modus aktivieren",
           "enable_system_power_switch": "System-Power-Schalter aktivieren",
+          "enable_system_power_reserve_guard": "System-Power-Reserve-Automatik aktivieren",
+          "system_power_reserve_restart_margin_percent": "Einschalt-Hysterese über Reserve (%)",
           "enable_daily_sunset_report": "Täglichen Sonnenuntergangsbericht aktivieren",
           "daily_report_notify_target": "Benachrichtigungsziel",
           "daily_report_feed_in_tariff_eur_per_kwh": "Einspeisevergütung (€/kWh)",
@@ -54,6 +56,8 @@
           "num_battery_packs": "Anzahl der physisch installierten Batterie-Packs (1–9). Nach dem Speichern wird die Integration automatisch neu geladen.",
           "debug_mode": "Aktiviert ausführliche Logs für diese Integration. Danach Integration neu laden und bei Bedarf Diagnose herunterladen.",
           "enable_system_power_switch": "Legt einen optionalen Schalter an, der den PowerOcean wie in der EcoFlow App ein- oder ausschaltet. Beim Ausschalten stoppt die Produktion; Einschalten kann 1–2 Minuten dauern.",
+          "enable_system_power_reserve_guard": "Schaltet den PowerOcean nachts automatisch aus, wenn der Gesamt-SOC die konfigurierte Backup-Reserve erreicht. Nach einer automatischen Abschaltung wird morgens wieder eingeschaltet.",
+          "system_power_reserve_restart_margin_percent": "Zusätzlicher Abstand über der Backup-Reserve, ab dem die Integration auch nachts wieder einschalten darf. Beispiel: Reserve 10 %, Hysterese 2 % bedeutet Wiedereinschalten ab 12 %.",
           "enable_daily_sunset_report": "Sendet bei Sonnenuntergang einen Tagesbericht mit Einspeisung, berechneter Vergütung und Akku-100%-Dauer.",
           "daily_report_notify_target": "Notify-Entität, an die der Tagesbericht gesendet wird. Sie muss gesetzt sein, wenn der Bericht aktiviert ist.",
           "daily_report_feed_in_tariff_eur_per_kwh": "Wird zur Berechnung des Tageswerts verwendet. Beispiel aus der Westnetz-Abrechnung: 0,077 €/kWh. Eingabe mit Komma oder Punkt ist möglich.",
@@ -71,7 +75,8 @@
     "error": {
       "missing_notification_target": "Bitte ein Benachrichtigungsziel auswählen oder den täglichen Sonnenuntergangsbericht deaktivieren.",
       "missing_backup_outage_notification_target": "Bitte ein Stromausfall-Benachrichtigungsziel auswählen oder die Stromausfall-Benachrichtigung deaktivieren.",
-      "backup_helpers_required": "Bitte Backup Helpers aktivieren, damit die Stromausfall-Benachrichtigung den Backup-Zustand auswerten kann."
+      "backup_helpers_required": "Bitte Backup Helpers aktivieren, damit die Stromausfall-Benachrichtigung den Backup-Zustand auswerten kann.",
+      "system_power_switch_required": "Bitte zuerst den System-Power-Schalter aktivieren, damit die Reserve-Automatik steuerbar und sichtbar ist."
     }
   },
   "entity": {

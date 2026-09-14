@@ -54,7 +54,15 @@ CONF_BACKUP_OUTAGE_NOTIFY_TARGET = "backup_outage_notify_target"
 """Home-Assistant-Notify-Entität für Stromausfall-/Backup-Benachrichtigungen."""
 
 CONF_ENABLE_SYSTEM_POWER_SWITCH = "enable_system_power_switch"
-"""Aktiviert den optionalen Schalter fuer System/Wechselrichter AN/AUS."""
+"""Aktiviert den optionalen Schalter für System/Wechselrichter AN/AUS."""
+
+CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD = "enable_system_power_reserve_guard"
+"""Aktiviert die optionale Reserve-Automatik für System-Power."""
+
+CONF_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT = (
+    "system_power_reserve_restart_margin_percent"
+)
+"""SOC-Hysterese über der Backup-Reserve, ab der nach Auto-Aus wieder eingeschaltet wird."""
 
 CONF_ENABLE_DAILY_SUNSET_REPORT = "enable_daily_sunset_report"
 """Aktiviert den optionalen Tagesbericht bei Sonnenuntergang."""
@@ -99,7 +107,13 @@ DEFAULT_BACKUP_OUTAGE_NOTIFY_TARGET = {}
 """Kein Stromausfall-Benachrichtigungsziel voreingestellt."""
 
 DEFAULT_ENABLE_SYSTEM_POWER_SWITCH = False
-"""Der System-Power-Schalter ist standardmaessig deaktiviert."""
+"""Der System-Power-Schalter ist standardmäßig deaktiviert."""
+
+DEFAULT_ENABLE_SYSTEM_POWER_RESERVE_GUARD = False
+"""Die System-Power-Reserve-Automatik ist standardmäßig deaktiviert."""
+
+DEFAULT_SYSTEM_POWER_RESERVE_RESTART_MARGIN_PERCENT = 2
+"""Standard-Hysterese in Prozentpunkten über der Backup-Reserve."""
 
 DEFAULT_ENABLE_DAILY_SUNSET_REPORT = False
 """Täglicher Sonnenuntergangsbericht ist standardmäßig deaktiviert."""
@@ -128,6 +142,10 @@ BACKUP_CRITICAL_RUNTIME_MINUTES_MAX = 24 * 60
 DAILY_REPORT_FEED_IN_TARIFF_MIN = 0.0
 DAILY_REPORT_FEED_IN_TARIFF_MAX = 1.0
 DAILY_REPORT_FEED_IN_TARIFF_STEP = 0.0001
+
+SYSTEM_POWER_RESERVE_RESTART_MARGIN_MIN = 0
+SYSTEM_POWER_RESERVE_RESTART_MARGIN_MAX = 20
+SYSTEM_POWER_RESERVE_RESTART_MARGIN_STEP = 1
 
 # Hinweis: CONF_EMAIL und CONF_PASSWORD kommen aus homeassistant.const
 

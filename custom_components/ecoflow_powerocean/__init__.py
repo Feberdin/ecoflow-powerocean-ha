@@ -33,9 +33,13 @@ from .const import (
     CONF_DEBUG_MODE,
     CONF_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     CONF_ENABLE_DAILY_SUNSET_REPORT,
+    CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+    CONF_ENABLE_SYSTEM_POWER_SWITCH,
     DEFAULT_ENABLE_BACKUP_OUTAGE_NOTIFICATION,
     DEFAULT_DEBUG_MODE,
     DEFAULT_ENABLE_DAILY_SUNSET_REPORT,
+    DEFAULT_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+    DEFAULT_ENABLE_SYSTEM_POWER_SWITCH,
     DOMAIN,
     PLATFORMS,
 )
@@ -45,6 +49,10 @@ from .backup_notification import (
 )
 from .coordinator import EcoFlowCoordinator
 from .daily_report import DAILY_REPORT_DATA_KEY, DailySunsetReportManager
+from .system_power_guard import (
+    SYSTEM_POWER_RESERVE_GUARD_DATA_KEY,
+    SystemPowerReserveGuardManager,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,6 +155,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 entry.entry_id
             ] = backup_notification_manager
 
+    if bool(
+        entry.options.get(
+            CONF_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+            DEFAULT_ENABLE_SYSTEM_POWER_RESERVE_GUARD,
+        )
+    ):
+        if not bool(
+            entry.options.get(
+                CONF_ENABLE_SYSTEM_POWER_SWITCH,
+                DEFAULT_ENABLE_SYSTEM_POWER_SWITCH,
+            )
+        ):
+            _LOGGER.warning(
+                "Reserve-Automatik ist aktiviert, aber der System-Power-Schalter "
+                "ist deaktiviert. Die Automatik wird nicht gestartet."
+            )
+        else:
+            reserve_guard_manager = SystemPowerReserveGuardManager(
+                hass,
+                entry,
+                coordinator,
+            )
+            try:
+                await reserve_guard_manager.async_setup()
+            except Exception as exc:
+                _LOGGER.warning(
+                    "Reserve-Automatik konnte nicht gestartet werden: %s",
+                    exc,
+                )
+            else:
+                hass.data.setdefault(SYSTEM_POWER_RESERVE_GUARD_DATA_KEY, {})[
+                    entry.entry_id
+                ] = reserve_guard_manager
+
     # Sensor-Plattform initialisieren
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -196,6 +238,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     if backup_notification_manager is not None:
         await backup_notification_manager.async_shutdown()
+
+    reserve_guard_manager = hass.data.get(
+        SYSTEM_POWER_RESERVE_GUARD_DATA_KEY,
+        {},
+    ).pop(
+        entry.entry_id,
+        None,
+    )
+    if reserve_guard_manager is not None:
+        await reserve_guard_manager.async_shutdown()
 
     # MQTT-Verbindung trennen
     if coordinator:
