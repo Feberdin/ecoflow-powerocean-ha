@@ -128,6 +128,74 @@ class BackupHelpersTestCase(unittest.TestCase):
 
         self.assertEqual(backup_helpers.total_soc_percent(data), 100)
 
+    def test_total_soc_rejects_stream_spike_when_fresh_pack_socs_disagree(self) -> None:
+        data = {
+            "energy_stream": proto_decoder.EnergyStreamData(
+                load_w=1000.0,
+                grid_w=-100.0,
+                solar_w=900.0,
+                battery_w=0.0,
+                soc=100,
+            ),
+            "energy_stream_observed_at": self.now,
+            "batteries": {
+                1: proto_decoder.BatteryPackData(pack_index=1, soc=43),
+                2: proto_decoder.BatteryPackData(pack_index=2, soc=43),
+                3: proto_decoder.BatteryPackData(pack_index=3, soc=42),
+            },
+            "batteries_observed_at": self.now - timedelta(seconds=60),
+        }
+
+        self.assertEqual(backup_helpers.total_soc_percent(data), 42)
+        details = backup_helpers.total_soc_details(data)
+        self.assertEqual(details.value, 42)
+        self.assertEqual(details.source, "battery_packs")
+        self.assertEqual(details.reason, "stream_pack_discrepancy")
+        self.assertEqual(details.stream_soc, 100)
+        self.assertEqual(details.pack_average_soc, 42)
+
+    def test_total_soc_keeps_stream_when_pack_difference_is_small(self) -> None:
+        data = {
+            "energy_stream": proto_decoder.EnergyStreamData(
+                load_w=1000.0,
+                grid_w=-100.0,
+                solar_w=900.0,
+                battery_w=0.0,
+                soc=44,
+            ),
+            "energy_stream_observed_at": self.now,
+            "batteries": {
+                1: proto_decoder.BatteryPackData(pack_index=1, soc=43),
+                2: proto_decoder.BatteryPackData(pack_index=2, soc=43),
+                3: proto_decoder.BatteryPackData(pack_index=3, soc=42),
+            },
+            "batteries_observed_at": self.now - timedelta(seconds=60),
+        }
+
+        self.assertEqual(backup_helpers.total_soc_percent(data), 44)
+        self.assertEqual(backup_helpers.total_soc_details(data).source, "energy_stream")
+
+    def test_total_soc_does_not_let_old_pack_values_override_fresh_stream(self) -> None:
+        data = {
+            "energy_stream": proto_decoder.EnergyStreamData(
+                load_w=1000.0,
+                grid_w=-100.0,
+                solar_w=900.0,
+                battery_w=0.0,
+                soc=100,
+            ),
+            "energy_stream_observed_at": self.now,
+            "batteries": {
+                1: proto_decoder.BatteryPackData(pack_index=1, soc=43),
+                2: proto_decoder.BatteryPackData(pack_index=2, soc=43),
+                3: proto_decoder.BatteryPackData(pack_index=3, soc=42),
+            },
+            "batteries_observed_at": self.now - timedelta(minutes=30),
+        }
+
+        self.assertEqual(backup_helpers.total_soc_percent(data), 100)
+        self.assertEqual(backup_helpers.total_soc_details(data).source, "energy_stream")
+
     def test_power_components_use_newer_ems_values_when_energy_stream_is_stale(self) -> None:
         older_stream_at = self.now - timedelta(minutes=10)
         fresher_ems_at = self.now

@@ -63,6 +63,7 @@ from .backup_helpers import (
     load_power_w,
     solar_power_w,
     total_energy_wh,
+    total_soc_details,
     total_soc_percent,
 )
 from .const import (
@@ -1025,6 +1026,26 @@ class EcoFlowSystemSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
             and self.coordinator.data is not None
             and self.coordinator.data.get(self.entity_description.data_key) is not None
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if (
+            self.entity_description.key != "total_soc"
+            or not self.entity_description.uses_coordinator_data
+            or not self.coordinator.data
+        ):
+            return None
+        try:
+            details = total_soc_details(self.coordinator.data)
+        except Exception:
+            return None
+        return {
+            "soc_source": details.source,
+            "soc_selection_reason": details.reason,
+            "stream_soc": details.stream_soc,
+            "pack_average_soc": details.pack_average_soc,
+            "soc_discrepancy_percent": details.discrepancy_percent,
+        }
 
 
 class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], RestoreSensor):

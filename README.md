@@ -454,6 +454,12 @@ Home Assistant und muss auf die eigenen Entity-IDs angepasst werden.
 
 > Deaktivierte Sensoren lassen sich unter *Einstellungen → Geräte & Dienste → EcoFlow PowerOcean → Entitäten* aktivieren.
 
+Der Sensor **Gesamt-Ladestand** plausibilisiert den Energy-Stream-SOC gegen
+frische Batteriepack-SOCs. Kurze falsche Sprünge auf 100 % werden verworfen,
+wenn die Pack-Werte deutlich dagegen sprechen. Zur Diagnose enthält der Sensor
+Attribute wie `soc_source`, `stream_soc`, `pack_average_soc` und
+`soc_discrepancy_percent`.
+
 ---
 
 ## Energie-Dashboard einrichten
@@ -668,6 +674,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.21` | Anonymisiertes Messdatenformat auf reichere v2-Snapshots erweitert | Mehr Analyseinformationen teilen, ohne Seriennummern, Tokens, Standort oder vollständige Entity-IDs offenzulegen |
 | `v0.4.22` | Anonymisierten Datenspende-Export auf v3 erweitert | Freiwillig geteilte EcoFlow-Daten breiter erfassen, Monatsstatistiken aufnehmen und die Zweckbindung klar dokumentieren |
 | `v0.4.23` | Datenspende-Hinweis mit Grafik prominent ergänzt | Nutzer direkt oben im Repo zeigen, wo und wie sie anonymisierte Daten teilen können |
+| `v0.4.24` | Kurzzeitige Energy-Stream-SOC-Ausreißer gegen frische Batteriepack-SOCs plausibilisiert | Falsche 100-%-Meldungen und dadurch ausgelöste Automationen vermeiden |
 
 ---
 

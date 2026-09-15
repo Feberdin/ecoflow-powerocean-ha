@@ -73,6 +73,11 @@ MIN_SIGN_FLIP_IMPROVEMENT_W = 20.0
 # Wenn der Energy-Stream länger hinter den anderen MQTT-Quellen herhinkt,
 # verwenden abgeleitete Sensoren lieber frischere EMS-/Batterie-Daten.
 ENERGY_STREAM_STALE_AFTER_SECONDS = 120.0
+# Einzelne Energy-Stream-SOC-Ausreißer kommen in der Praxis vor. Frische
+# Batteriepack-SOCs dürfen solche Sprünge überstimmen, wenn sie deutlich
+# widersprechen.
+SOC_STREAM_PACK_DISCREPANCY_MAX_PERCENT = 5
+SOC_PACK_DATA_MAX_AGE_SECONDS = 10 * 60
 
 # Outage-Erkennung bewusst konservativ:
 # - Hauslast muss spürbar vorhanden sein
@@ -149,6 +154,22 @@ class BackupEvaluation:
 
     def as_dict(self) -> dict[str, Any]:
         """Hilfsdarstellung für Diagnostics und Debug-Attribute."""
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class SocSelection:
+    """Erklärbare Auswahl der zuverlässigsten SOC-Quelle."""
+
+    value: int | None
+    source: str
+    stream_soc: int | None
+    pack_average_soc: int | None
+    discrepancy_percent: int | None
+    reason: str
+
+    def as_dict(self) -> dict[str, Any]:
+        """Hilfsdarstellung für Sensor-Attribute und Diagnostics."""
         return asdict(self)
 
 
@@ -409,26 +430,124 @@ def battery_power_w(data: Mapping[str, Any]) -> float:
     return normalized_power_components(data)[3]
 
 
-def total_soc_percent(data: Mapping[str, Any]) -> int | None:
-    """Gesamt-SOC bevorzugt aus ENERGY_STREAM, sonst Mittelwert aller Packs."""
-    stream = data.get(DATA_ENERGY_STREAM)
-    stream_soc: int | None = None
-    if stream is not None:
-        try:
-            stream_soc = int(getattr(stream, "soc", 0))
-        except (TypeError, ValueError):
-            stream_soc = None
-        if (
-            stream_soc is not None
-            and 0 <= stream_soc <= 100
-            and not _energy_stream_is_stale(data)
-        ):
-            return stream_soc
+def total_soc_details(data: Mapping[str, Any]) -> SocSelection:
+    """
+    Wählt den plausibelsten Gesamt-SOC mit Diagnoseinformationen.
 
+    Warum:
+        Der Energy-Stream liefert kompakte Systemwerte und ist meist aktuell.
+        In der Praxis können dort aber kurze SOC-Ausreißer auftreten, z. B.
+        `42 -> 100 -> 40`. Wenn frische Batteriepack-SOCs deutlich dagegen
+        sprechen, ist der Pack-Mittelwert zuverlässiger.
+    """
+    stream_soc = _stream_soc_percent(data)
+    pack_average_soc = _pack_average_soc(data)
+    discrepancy_percent = (
+        abs(stream_soc - pack_average_soc)
+        if stream_soc is not None and pack_average_soc is not None
+        else None
+    )
+    stream_is_stale = _energy_stream_is_stale(data)
+    packs_are_recent = _pack_socs_are_recent_enough_for_stream_check(data)
+
+    if stream_soc is not None and not stream_is_stale:
+        if (
+            packs_are_recent
+            and pack_average_soc is not None
+            and discrepancy_percent is not None
+            and discrepancy_percent > SOC_STREAM_PACK_DISCREPANCY_MAX_PERCENT
+        ):
+            return SocSelection(
+                value=pack_average_soc,
+                source="battery_packs",
+                stream_soc=stream_soc,
+                pack_average_soc=pack_average_soc,
+                discrepancy_percent=discrepancy_percent,
+                reason="stream_pack_discrepancy",
+            )
+        return SocSelection(
+            value=stream_soc,
+            source="energy_stream",
+            stream_soc=stream_soc,
+            pack_average_soc=pack_average_soc,
+            discrepancy_percent=discrepancy_percent,
+            reason="fresh_energy_stream",
+        )
+
+    if pack_average_soc is not None:
+        return SocSelection(
+            value=pack_average_soc,
+            source="battery_packs",
+            stream_soc=stream_soc,
+            pack_average_soc=pack_average_soc,
+            discrepancy_percent=discrepancy_percent,
+            reason="energy_stream_stale" if stream_is_stale else "no_valid_energy_stream",
+        )
+
+    if stream_soc is not None:
+        return SocSelection(
+            value=stream_soc,
+            source="energy_stream",
+            stream_soc=stream_soc,
+            pack_average_soc=None,
+            discrepancy_percent=None,
+            reason="no_battery_pack_soc",
+        )
+
+    return SocSelection(
+        value=None,
+        source="unknown",
+        stream_soc=None,
+        pack_average_soc=pack_average_soc,
+        discrepancy_percent=None,
+        reason="missing_soc",
+    )
+
+
+def total_soc_percent(data: Mapping[str, Any]) -> int | None:
+    """Gesamt-SOC robust aus Energy-Stream und Batteriepack-SOCs."""
+    return total_soc_details(data).value
+
+
+def _stream_soc_percent(data: Mapping[str, Any]) -> int | None:
+    """Liest einen gültigen Energy-Stream-SOC oder `None`."""
+    stream = data.get(DATA_ENERGY_STREAM)
+    if stream is None:
+        return None
+    try:
+        stream_soc = int(getattr(stream, "soc", None))
+    except (TypeError, ValueError):
+        return None
+    return stream_soc if 0 <= stream_soc <= 100 else None
+
+
+def _pack_average_soc(data: Mapping[str, Any]) -> int | None:
+    """Berechnet den Mittelwert gültiger Pack-SOCs."""
     batteries = data.get(DATA_BATTERIES, {})
     if not batteries:
-        return stream_soc if stream_soc is not None and 0 <= stream_soc <= 100 else None
-    return int(sum(pack.soc for pack in batteries.values()) / len(batteries))
+        return None
+    pack_socs: list[int] = []
+    for pack in batteries.values():
+        try:
+            soc = int(getattr(pack, "soc"))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if 0 <= soc <= 100:
+            pack_socs.append(soc)
+    if not pack_socs:
+        return None
+    return int(sum(pack_socs) / len(pack_socs))
+
+
+def _pack_socs_are_recent_enough_for_stream_check(data: Mapping[str, Any]) -> bool:
+    """Prüft, ob Pack-SOCs einen Stream-SOC plausibel validieren dürfen."""
+    batteries_observed_at = _coerce_observed_at(data.get(DATA_BATTERIES_OBSERVED_AT))
+    stream_observed_at = _coerce_observed_at(data.get(DATA_ENERGY_STREAM_OBSERVED_AT))
+    if batteries_observed_at is None or stream_observed_at is None:
+        return False
+    return (
+        stream_observed_at - batteries_observed_at
+    ).total_seconds() <= SOC_PACK_DATA_MAX_AGE_SECONDS
 
 
 def total_energy_wh(data: Mapping[str, Any]) -> float | None:
