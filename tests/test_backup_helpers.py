@@ -223,7 +223,8 @@ class BackupHelpersTestCase(unittest.TestCase):
 
         self.assertEqual(
             backup_helpers.normalized_power_components(data),
-            (3000.0, -1500.0, 1500.0, 0.0),
+            # PCS phase power is inverter output, never a grid-meter substitute.
+            (3000.0, None, None, 0.0),
         )
 
     def test_power_components_normalize_ems_battery_discharge_sign(self) -> None:
@@ -253,7 +254,7 @@ class BackupHelpersTestCase(unittest.TestCase):
 
         self.assertEqual(
             backup_helpers.normalized_power_components(data),
-            (0.2, -527.7, 125.0, 652.5),
+            (0.2, None, None, 652.5),
         )
 
     def test_normalize_backup_helper_options_clamps_invalid_values(self) -> None:

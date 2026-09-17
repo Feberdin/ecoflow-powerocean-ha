@@ -474,6 +474,17 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         observed_at = dt_util.utcnow()
         with self._mqtt_lock:
             self._last_message_at = observed_at
+            # Detail batches carry acquisition timestamps. Delayed/reordered
+            # samples must neither look newly measured nor overwrite newer data.
+            stream_time = (
+                energy_stream.sampled_at if energy_stream is not None else None
+            ) or observed_at
+            previous_stream_time = self.data.get(DATA_ENERGY_STREAM_OBSERVED_AT)
+            if (
+                energy_stream is not None and previous_stream_time is not None
+                and stream_time < previous_stream_time
+            ):
+                energy_stream = None
             new_batteries = dict(self.data.get(DATA_BATTERIES, {}))
             for pack in battery_packs:
                 new_batteries[pack.pack_index] = pack
@@ -491,7 +502,7 @@ class EcoFlowCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else self.data.get(DATA_BATTERIES_OBSERVED_AT)
             )
             energy_stream_observed_at = (
-                observed_at
+                stream_time
                 if energy_stream is not None
                 else self.data.get(DATA_ENERGY_STREAM_OBSERVED_AT)
             )

@@ -7,6 +7,16 @@ on:
   pull_request:
 
 jobs:
+  unit-tests:
+    name: Python regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python3 -m unittest discover -s tests
+      - run: python3 -m compileall -q custom_components/ecoflow_powerocean
   hacs:
     name: HACS Validation
     runs-on: ubuntu-latest

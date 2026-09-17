@@ -281,14 +281,6 @@ def backup_history_retention_minutes(config: BackupHelperConfig) -> int:
     return max(BACKUP_HISTORY_MINUTES, config.runtime_smoothing_minutes + 5)
 
 
-def _ems_grid_power_w(data: Mapping[str, Any]) -> float:
-    """Fallback: Netzleistung aus den drei Phasen (EMS_HEARTBEAT)."""
-    ems = data.get(DATA_EMS_HEARTBEAT)
-    if ems is None:
-        return 0.0
-    return float(ems.phase_a.act_pwr + ems.phase_b.act_pwr + ems.phase_c.act_pwr)
-
-
 def _ems_solar_power_w(data: Mapping[str, Any]) -> float:
     """Fallback: Solarleistung als Summe aller MPPT-Strings."""
     ems = data.get(DATA_EMS_HEARTBEAT)
@@ -369,7 +361,9 @@ def _energy_stream_is_stale(data: Mapping[str, Any]) -> bool:
     ).total_seconds() > ENERGY_STREAM_STALE_AFTER_SECONDS
 
 
-def normalized_power_components(data: Mapping[str, Any]) -> tuple[float, float, float, float]:
+def normalized_power_components(
+    data: Mapping[str, Any],
+) -> tuple[float | None, float | None, float | None, float | None]:
     """
     Liefert normalisierte Leistungswerte als `(solar, grid, load, battery)`.
 
@@ -381,14 +375,20 @@ def normalized_power_components(data: Mapping[str, Any]) -> tuple[float, float, 
 
     stream = data.get(DATA_ENERGY_STREAM)
     if stream is None or _energy_stream_is_stale(data):
-        solar = _ems_solar_power_w(data)
-        grid = _ems_grid_power_w(data)
-        battery = _normalized_ems_battery_power_w(data)
-        if data.get(DATA_EMS_HEARTBEAT) is not None:
-            load = max(solar + battery + grid, 0.0)
-            return solar, grid, load, battery
-        if stream is None:
-            return solar, grid, solar + battery + grid, battery
+        # PCS phases measure inverter AC output, not the external grid meter.
+        # Without a current stream, grid and house consumption are unknowable.
+        if data.get(DATA_EMS_HEARTBEAT) is None:
+            return None, None, None, None
+        ems_at = _coerce_observed_at(data.get(DATA_EMS_HEARTBEAT_OBSERVED_AT))
+        peer_at = _latest_observed_at(
+            data, (DATA_BATTERIES_OBSERVED_AT, DATA_ENERGY_STREAM_OBSERVED_AT),
+        )
+        if (
+            ems_at is not None and peer_at is not None
+            and (peer_at - ems_at).total_seconds() > ENERGY_STREAM_STALE_AFTER_SECONDS
+        ):
+            return None, None, None, None
+        return _ems_solar_power_w(data), None, None, _normalized_ems_battery_power_w(data)
 
     solar = float(stream.solar_w)
     load = float(stream.load_w)
@@ -410,22 +410,22 @@ def normalized_power_components(data: Mapping[str, Any]) -> tuple[float, float, 
     return solar, grid, load, battery
 
 
-def solar_power_w(data: Mapping[str, Any]) -> float:
+def solar_power_w(data: Mapping[str, Any]) -> float | None:
     """Solarleistung in Watt."""
     return normalized_power_components(data)[0]
 
 
-def grid_power_w(data: Mapping[str, Any]) -> float:
+def grid_power_w(data: Mapping[str, Any]) -> float | None:
     """Netzleistung in Watt, positiv für Bezug und negativ für Einspeisung."""
     return normalized_power_components(data)[1]
 
 
-def load_power_w(data: Mapping[str, Any]) -> float:
+def load_power_w(data: Mapping[str, Any]) -> float | None:
     """Hausverbrauch in Watt."""
     return normalized_power_components(data)[2]
 
 
-def battery_power_w(data: Mapping[str, Any]) -> float:
+def battery_power_w(data: Mapping[str, Any]) -> float | None:
     """Batterieleistung in Watt, positiv für Entladen und negativ für Laden."""
     return normalized_power_components(data)[3]
 
@@ -712,7 +712,10 @@ def _sample_indicates_grid_quiet(
     grid_power_threshold_w: int,
 ) -> bool:
     """Prüft, ob die Netzleistung keine normale Versorgung erkennen lässt."""
-    return abs(snapshot.grid_power_w or 0.0) <= float(grid_power_threshold_w)
+    return (
+        snapshot.grid_power_w is not None
+        and abs(snapshot.grid_power_w) <= float(grid_power_threshold_w)
+    )
 
 
 def _recent_outage_samples(

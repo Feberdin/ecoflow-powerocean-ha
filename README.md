@@ -478,9 +478,16 @@ Die kWh-Sensoren sind direkt einsatzbereit. Navigiere zu *Einstellungen → Dash
 **Hinweise:**
 - Zähler starten mit der ersten MQTT-Nachricht — historische Werte werden nicht rückwirkend berechnet
 - Werte bleiben über HA-Neustarts erhalten
-- Bei MQTT-/Internet-Lücken wird beim Reconnect eine Schätzung angewendet
-  (Trapezregel aus letzter Leistung vor Disconnect und erster Leistung nach Reconnect)
-- Sehr lange Unterbrechungen werden aus Sicherheitsgründen nicht automatisch nachgerechnet
+- Seit 0.4.25 werden Verbindungs- und Messlücken nicht mit Energie aufgefüllt.
+  Nur Intervalle bis 120 Sekunden mit gültigen Randmessungen werden integriert.
+  `skipped_seconds_since_start` zeigt ausgelassene Zeit seit dem HA-Start.
+- Frische Detailtelegramme (96/34) werden anhand ihres Gerätezeitstempels
+  ausgewertet. Historische Pakete sind keine Live-Werte.
+- EMS-Phasenleistung gehört zum Wechselrichter, nicht zum Netzanschlusspunkt.
+  Ohne frischen Energiefluss bleiben Netzleistung und Hausverbrauch unbekannt.
+  `power_source` und `power_observed_at` zeigen Quelle und Messzeitpunkt.
+- Bestehende Zählerstände und historische Statistikfehler werden nicht rückwirkend
+  verändert. Ein Update allein macht ältere Amortisationswerte nicht zuverlässig.
 - Kleine Messschwankungen (±5 W) können gleichzeitig minimale Bezugs- und Einspeisungswerte erzeugen — physikalisch normal, Einfluss auf Monatssummen vernachlässigbar
 
 ---
@@ -675,6 +682,7 @@ Issues und Pull Requests bitte über GitHub einreichen.
 | `v0.4.22` | Anonymisierten Datenspende-Export auf v3 erweitert | Freiwillig geteilte EcoFlow-Daten breiter erfassen, Monatsstatistiken aufnehmen und die Zweckbindung klar dokumentieren |
 | `v0.4.23` | Datenspende-Hinweis mit Grafik prominent ergänzt | Nutzer direkt oben im Repo zeigen, wo und wie sie anonymisierte Daten teilen können |
 | `v0.4.24` | Kurzzeitige Energy-Stream-SOC-Ausreißer gegen frische Batteriepack-SOCs plausibilisiert | Falsche 100-%-Meldungen und dadurch ausgelöste Automationen vermeiden |
+| `v0.4.25` | Keine Energieerfindung in Verbindungslücken; zeitgestempelte Detailtelegramme; kein PCS-Netzzählerersatz | Nacht-PV durch Lückenschätzung vermeiden und fehlende Messwerte ausdrücklich kennzeichnen |
 
 ---
 
