@@ -31,8 +31,10 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import struct
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
@@ -174,6 +176,12 @@ class EnergyStreamData:
 
     soc: int = 0
     """Kombinierter Batterie-Ladestand aller Packs in Prozent."""
+
+    sampled_at: datetime | None = None
+    """Device timestamp for detail samples; compact reports have no timestamp."""
+
+    source: str = "compact_report"
+    """Diagnostic protocol source, never a device identifier."""
 
 
 EMS_WORK_MODE_LABELS: dict[int, str] = {
@@ -761,6 +769,40 @@ def _decode_ems_change_report(pdata: bytes) -> SystemStatusData | None:
         return None
 
 
+def _decode_energy_stream_detail(pdata: bytes) -> EnergyStreamData | None:
+    """Read only the newest fresh 96/34 sample, never replay historical batches.
+
+    EnergyStreamDetail.sys_energy_stream is repeated field 1. Items use the same
+    four powers as 96/33, timestamp field 5 and SOC field 7. Schema reference:
+    foxthefox/ioBroker.ecoflow-mqtt/lib/dict_data/ef_poweroceanplus_data.js.
+    A batch [10:00, 09:59] yields 10:00, regardless of array order.
+    """
+    now = datetime.now(UTC)
+    newest = None
+    for raw in _decode_fields(pdata).get(1, []):
+        if not isinstance(raw, bytes):
+            continue
+        fields = _decode_fields(raw)
+        timestamp = _get_int(fields, 5)
+        if timestamp <= 0:
+            continue
+        sampled_at = datetime.fromtimestamp(timestamp, UTC)
+        age = (now - sampled_at).total_seconds()
+        if age < -30 or age > 120:
+            continue
+        powers = [_get_float(fields, i) for i in range(1, 5)]
+        soc = _get_int(fields, 7)
+        if not all(math.isfinite(value) for value in powers) or not 0 <= soc <= 100:
+            continue
+        if newest is None or sampled_at > newest.sampled_at:
+            newest = EnergyStreamData(
+                load_w=powers[0], grid_w=powers[1], solar_w=powers[2],
+                battery_w=powers[3], soc=soc, sampled_at=sampled_at,
+                source="detail_report",
+            )
+    return newest
+
+
 # ── Haupt-Einstiegspunkt ──────────────────────────────────────────────────────
 
 def decode_mqtt_payload(
@@ -838,6 +880,11 @@ def decode_mqtt_payload(
             elif cmd_func == 96 and cmd_id == 33:
                 # JTS1_ENERGY_STREAM_REPORT — Energiefluss
                 energy_stream = _decode_energy_stream(pdata)
+
+            elif cmd_func == 96 and cmd_id == 34:
+                result = _decode_energy_stream_detail(pdata)
+                if result is not None:
+                    energy_stream = result
 
             elif cmd_func == 96 and cmd_id in (8, 17):
                 # JTS1_EMS_CHANGE_REPORT — Status-/Konfigurationswerte.

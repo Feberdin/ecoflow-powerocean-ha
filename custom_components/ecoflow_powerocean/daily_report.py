@@ -213,7 +213,7 @@ class DailyReportAccumulator:
         self,
         now: datetime,
         *,
-        export_power_w: float,
+        export_power_w: float | None,
         soc_percent: float | None,
         tariff_eur_per_kwh: float = 0.0,
     ) -> None:
@@ -228,14 +228,14 @@ class DailyReportAccumulator:
         if self.state.local_date != local_date:
             self.reset_for_date(local_date)
 
-        export_power = max(_coerce_float(export_power_w, 0.0), 0.0)
+        export_power = None if export_power_w is None else max(_coerce_float(export_power_w, 0.0), 0.0)
         soc = _coerce_optional_float(soc_percent)
         previous_update = _parse_datetime(self.state.last_update_iso, now)
 
         if previous_update is not None:
             delta_seconds = (now - previous_update).total_seconds()
             if delta_seconds > 0:
-                export_delta_kwh = self._integrate_export(delta_seconds)
+                export_delta_kwh = self._integrate_export(delta_seconds) if export_power is not None else 0.0
                 self._integrate_value(export_delta_kwh, tariff_eur_per_kwh)
                 self._integrate_full_soc(delta_seconds)
 
@@ -362,7 +362,8 @@ class DailySunsetReportManager:
             return
 
         try:
-            export_power_w = max(-grid_power_w(data), 0.0)
+            grid = grid_power_w(data)
+            export_power_w = max(-grid, 0.0) if grid is not None else None
             soc_percent = total_soc_percent(data)
         except Exception as exc:
             _LOGGER.debug("Tagesbericht: Daten konnten nicht gelesen werden: %s", exc)

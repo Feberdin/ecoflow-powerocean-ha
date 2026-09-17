@@ -26,6 +26,7 @@ Sensorgruppen:
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
@@ -72,7 +73,9 @@ from .const import (
     CONF_SERIAL_NUMBER,
     DATA_BATTERIES,
     DATA_ENERGY_STREAM,
+    DATA_ENERGY_STREAM_OBSERVED_AT,
     DATA_EMS_HEARTBEAT,
+    DATA_EMS_HEARTBEAT_OBSERVED_AT,
     DATA_SYSTEM_STATUS,
     DEFAULT_NUM_BATTERY_PACKS,
     DOMAIN,
@@ -1029,6 +1032,24 @@ class EcoFlowSystemSensor(CoordinatorEntity[EcoFlowCoordinator], SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
+        power_keys = {"solar_power", "grid_power", "load_power", "battery_total_power"}
+        if self.entity_description.key in power_keys and self.coordinator.data:
+            data = self.coordinator.data
+            stream = data.get(DATA_ENERGY_STREAM)
+            using_stream = stream is not None and grid_power_w(data) is not None
+            time_key = (
+                DATA_ENERGY_STREAM_OBSERVED_AT
+                if using_stream else DATA_EMS_HEARTBEAT_OBSERVED_AT
+            )
+            observed_at = data.get(time_key)
+            source = stream.source if using_stream else "ems_partial"
+            if not using_stream and self.entity_description.key in {"grid_power", "load_power"}:
+                source = "unavailable"
+                observed_at = None
+            return {
+                "power_source": source,
+                "power_observed_at": observed_at.isoformat() if observed_at else None,
+            }
         if (
             self.entity_description.key != "total_soc"
             or not self.entity_description.uses_coordinator_data
@@ -1070,8 +1091,9 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
         self._attr_device_info = device_info
         self._accumulated_kwh: float = 0.0
         self._last_update: datetime | None = None
-        self._last_power_w: float = 0.0
+        self._last_power_w: float | None = None
         self._seen_gap_event_id: int = 0
+        self._skipped_seconds: float = 0.0
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -1089,58 +1111,57 @@ class EcoFlowEnergyAccumulatorSensor(CoordinatorEntity[EcoFlowCoordinator], Rest
         now = dt_util.utcnow()
         power_w = self._get_power_w()
         if self._last_update is not None:
-            dt_hours = (now - self._last_update).total_seconds() / 3600.0
-            gap_hours = 0.0
-            if self.coordinator.gap_event_id != self._seen_gap_event_id:
-                # Für die erste Aktualisierung nach Reconnect:
-                # - Nicht mit "letzter Leistung über gesamte Offline-Zeit" integrieren.
-                # - Stattdessen Trapez-Schätzung zwischen letzter und erster Leistung.
-                gap_hours = max(self.coordinator.last_gap_seconds, 0.0) / 3600.0
-                self._seen_gap_event_id = self.coordinator.gap_event_id
-
-            active_hours = max(dt_hours - gap_hours, 0.0)
-            self._accumulated_kwh += (self._last_power_w / 1000.0) * active_hours
-
-            if gap_hours > 0.0:
-                estimated_gap_power_w = max(
-                    (self._last_power_w + power_w) / 2.0,
-                    0.0,
+            seconds = (now - self._last_update).total_seconds()
+            reconnect = self.coordinator.gap_event_id != self._seen_gap_event_id
+            # Only integrate a short interval bounded by two valid samples.
+            # Example: 1 kW before/after a 12-hour disconnect is not 12 kWh.
+            if (
+                0 < seconds <= 120
+                and not reconnect
+                and self._last_power_w is not None
+                and power_w is not None
+            ):
+                self._accumulated_kwh += self._last_power_w * seconds / 3_600_000.0
+            elif seconds > 0:
+                self._skipped_seconds += seconds
+                _LOGGER.debug(
+                    "Energy gap omitted: %s (%.1f seconds)",
+                    self.entity_description.key, seconds,
                 )
-                gap_kwh = (estimated_gap_power_w / 1000.0) * gap_hours
-                self._accumulated_kwh += gap_kwh
-                _LOGGER.info(
-                    "Gap-Reconciliation %s: +%.4f kWh (Lücke %.1f min, P_alt=%.1f W, P_neu=%.1f W)",
-                    self.entity_description.key,
-                    gap_kwh,
-                    gap_hours * 60.0,
-                    self._last_power_w,
-                    power_w,
-                )
+        self._seen_gap_event_id = self.coordinator.gap_event_id
         self._last_update = now
         self._last_power_w = power_w
         super()._handle_coordinator_update()
 
-    def _get_power_w(self) -> float:
+    def _get_power_w(self) -> float | None:
         if not self.coordinator.data:
-            return 0.0
+            return None
         try:
-            return self.entity_description.power_fn(self.coordinator.data)
-        except Exception:
-            return 0.0
+            value = self.entity_description.power_fn(self.coordinator.data)
+            if value is None or not math.isfinite(value) or value < 0:
+                return None
+            return value
+        except (TypeError, ValueError, AttributeError):
+            _LOGGER.debug("Energy source unavailable: %s", self.entity_description.key)
+            return None
 
     @property
     def native_value(self) -> float:
         return round(self._accumulated_kwh, 4)
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "integration_method": "left_riemann_no_gap_fill",
+            "skipped_seconds_since_start": round(self._skipped_seconds, 1),
+        }
+
+    @property
     def available(self) -> bool:
         return (
             super().available
             and self.coordinator.data is not None
-            and (
-                self.coordinator.data.get(DATA_ENERGY_STREAM) is not None
-                or self.coordinator.data.get(DATA_EMS_HEARTBEAT) is not None
-            )
+            and self._get_power_w() is not None
         )
 
 

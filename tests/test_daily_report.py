@@ -121,6 +121,13 @@ class DailyReportTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(acc.state.daily_export_kwh, 0.5)
 
+    def test_unknown_grid_breaks_export_integration_instead_of_reusing_last_power(self) -> None:
+        acc = self._accumulator()
+        acc.update(self.start, export_power_w=1000, soc_percent=80)
+        acc.update(self.start + timedelta(seconds=30), export_power_w=None, soc_percent=80)
+        acc.update(self.start + timedelta(seconds=60), export_power_w=1000, soc_percent=80)
+        self.assertEqual(acc.state.daily_export_kwh, 0)
+
     def test_totals_accumulate_export_value_and_full_soc_duration(self) -> None:
         acc = self._accumulator()
         acc.update(self.start, export_power_w=1000.0, soc_percent=100)
